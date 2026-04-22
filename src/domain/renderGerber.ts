@@ -12,6 +12,16 @@ import {
 export async function readAndRenderFile(file: File, id: string): Promise<UploadedLayer> {
   const rawText = await file.text()
   const kind = inferLayerKind(file.name)
+
+  return renderLayerText(rawText, file.name, id, kind)
+}
+
+export async function renderLayerText(
+  rawText: string,
+  fileName: string,
+  id: string,
+  kind: LayerKind,
+): Promise<UploadedLayer> {
   const color = LAYER_COLORS[kind]
 
   try {
@@ -26,7 +36,7 @@ export async function readAndRenderFile(file: File, id: string): Promise<Uploade
 
     return {
       id,
-      fileName: file.name,
+      fileName,
       rawText,
       kind,
       side: inferLayerSide(kind),
@@ -42,7 +52,7 @@ export async function readAndRenderFile(file: File, id: string): Promise<Uploade
   } catch (error) {
     return {
       id,
-      fileName: file.name,
+      fileName,
       rawText,
       kind,
       side: inferLayerSide(kind),

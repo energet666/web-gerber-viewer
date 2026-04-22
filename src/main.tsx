@@ -13,13 +13,14 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import './styles.css'
-import { readAndRenderFile } from './domain/renderGerber'
+import { readAndRenderFile, renderLayerText } from './domain/renderGerber'
 import {
   LAYER_LABELS,
   combineViewBoxes,
   compareLayersByViewMode,
   createLayerId,
   type BoardViewMode,
+  type LayerKind,
   type UploadedLayer,
   type ViewBox,
 } from './domain/layers'
@@ -28,6 +29,17 @@ const root = createRoot(document.getElementById('root') as HTMLElement)
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 8
 const ZOOM_STEP = 0.2
+const LAYER_KIND_OPTIONS: LayerKind[] = [
+  'top-copper',
+  'bottom-copper',
+  'top-mask',
+  'bottom-mask',
+  'top-silk',
+  'bottom-silk',
+  'outline',
+  'drill',
+  'unknown',
+]
 
 root.render(
   <React.StrictMode>
@@ -39,6 +51,7 @@ function App() {
   const [layers, setLayers] = useState<UploadedLayer[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [renderingLayerIds, setRenderingLayerIds] = useState<Set<string>>(new Set())
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -71,6 +84,30 @@ function App() {
 
   function changeLayerColor(id: string, color: string) {
     setLayers((currentLayers) => currentLayers.map((layer) => (layer.id === id ? { ...layer, color } : layer)))
+  }
+
+  async function changeLayerKind(id: string, kind: LayerKind) {
+    const layer = layers.find((currentLayer) => currentLayer.id === id)
+    if (!layer || layer.kind === kind) return
+
+    setRenderingLayerIds((currentIds) => new Set(currentIds).add(id))
+    const nextLayer = await renderLayerText(layer.rawText, layer.fileName, layer.id, kind)
+
+    setLayers((currentLayers) =>
+      currentLayers.map((currentLayer) => {
+        if (currentLayer.id !== id) return currentLayer
+
+        return {
+          ...nextLayer,
+          visible: nextLayer.status === 'ready' ? currentLayer.visible || currentLayer.status === 'error' : false,
+        }
+      }),
+    )
+    setRenderingLayerIds((currentIds) => {
+      const nextIds = new Set(currentIds)
+      nextIds.delete(id)
+      return nextIds
+    })
   }
 
   function downloadCombinedSvg() {
@@ -127,31 +164,51 @@ function App() {
             <p className="empty-copy">Drop Gerber and drill files to build a local preview.</p>
           ) : (
             <div className="layer-list">
-              {sortedLayers.map((layer) => (
-                <article className={`layer-row ${layer.status === 'error' ? 'has-error' : ''}`} key={layer.id}>
-                  <button
-                    className="icon-button compact"
-                    title={layer.visible ? 'Hide layer' : 'Show layer'}
-                    onClick={() => toggleLayer(layer.id)}
-                    disabled={layer.status === 'error'}
-                  >
-                    {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <input
-                    className="swatch"
-                    type="color"
-                    title="Layer color"
-                    value={layer.color}
-                    onChange={(event) => changeLayerColor(layer.id, event.target.value)}
-                    disabled={layer.status === 'error'}
-                  />
-                  <div className="layer-meta">
-                    <strong>{layer.fileName}</strong>
-                    <span>{layer.status === 'error' ? layer.error : LAYER_LABELS[layer.kind]}</span>
-                  </div>
-                  {layer.status === 'error' ? <FileWarning className="error-icon" size={18} /> : null}
-                </article>
-              ))}
+              {sortedLayers.map((layer) => {
+                const isRenderingLayer = renderingLayerIds.has(layer.id)
+
+                return (
+                  <article className={`layer-row ${layer.status === 'error' ? 'has-error' : ''}`} key={layer.id}>
+                    <button
+                      className="icon-button compact"
+                      title={layer.visible ? 'Hide layer' : 'Show layer'}
+                      onClick={() => toggleLayer(layer.id)}
+                      disabled={layer.status === 'error' || isRenderingLayer}
+                    >
+                      {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                    </button>
+                    <input
+                      className="swatch"
+                      type="color"
+                      title="Layer color"
+                      value={layer.color}
+                      onChange={(event) => changeLayerColor(layer.id, event.target.value)}
+                      disabled={layer.status === 'error' || isRenderingLayer}
+                    />
+                    <div className="layer-meta">
+                      <strong>{layer.fileName}</strong>
+                      <select
+                        className="layer-kind-select"
+                        aria-label={`Layer type for ${layer.fileName}`}
+                        value={layer.kind}
+                        onChange={(event) => void changeLayerKind(layer.id, event.target.value as LayerKind)}
+                        disabled={isRenderingLayer}
+                      >
+                        {LAYER_KIND_OPTIONS.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {LAYER_LABELS[kind]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {layer.status === 'error' ? (
+                      <span className="error-icon" title={layer.error}>
+                        <FileWarning size={18} />
+                      </span>
+                    ) : null}
+                  </article>
+                )
+              })}
             </div>
           )}
         </section>
