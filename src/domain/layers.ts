@@ -22,6 +22,8 @@ export type ViewBox = {
   height: number
 }
 
+export type SvgRenderAttributes = Record<string, string>
+
 export type UploadedLayer = {
   id: string
   fileName: string
@@ -35,6 +37,7 @@ export type UploadedLayer = {
   svgMarkup?: string
   defsMarkup?: string
   layerMarkup?: string
+  renderAttributes?: SvgRenderAttributes
   viewBox?: ViewBox
 }
 
@@ -153,19 +156,48 @@ export function parseViewBox(svgMarkup: string): ViewBox | null {
   }
 }
 
-export function extractSvgParts(svgMarkup: string): { defsMarkup: string; layerMarkup: string } {
+const inheritedRenderAttributes = new Set([
+  'fill-rule',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-width',
+])
+
+export function extractSvgParts(svgMarkup: string): {
+  defsMarkup: string
+  layerMarkup: string
+  renderAttributes: SvgRenderAttributes
+} {
   const defsMarkup = Array.from(svgMarkup.matchAll(/<defs\b[^>]*>[\s\S]*?<\/defs>/gi))
     .map((match) => match[0])
     .join('\n')
 
+  const svgTag = svgMarkup.match(/<svg\b([^>]*)>/i)?.[1] ?? ''
+  const renderAttributes = pickRenderAttributes(parseAttributes(svgTag))
   const layerMatch = svgMarkup.match(/<g\b[^>]*\btransform=["'][^"']+["'][^>]*>([\s\S]*)<\/g>\s*<\/svg>/i)
 
   return {
     defsMarkup,
     layerMarkup: layerMatch?.[1] ?? '',
+    renderAttributes,
   }
 }
 
 export function createLayerId(file: File, index: number): string {
   return `${file.name}-${file.size}-${file.lastModified}-${index}`
+}
+
+function parseAttributes(attributeText: string): SvgRenderAttributes {
+  const attributes: SvgRenderAttributes = {}
+
+  for (const match of attributeText.matchAll(/([:\w-]+)\s*=\s*(["'])(.*?)\2/g)) {
+    attributes[match[1]] = match[3]
+  }
+
+  return attributes
+}
+
+function pickRenderAttributes(attributes: SvgRenderAttributes): SvgRenderAttributes {
+  return Object.fromEntries(Object.entries(attributes).filter(([name]) => inheritedRenderAttributes.has(name)))
 }

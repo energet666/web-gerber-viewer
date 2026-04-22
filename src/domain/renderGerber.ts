@@ -36,6 +36,7 @@ export async function readAndRenderFile(file: File, id: string): Promise<Uploade
       svgMarkup,
       defsMarkup: svgParts.defsMarkup,
       layerMarkup: svgParts.layerMarkup,
+      renderAttributes: svgParts.renderAttributes,
       viewBox,
     }
   } catch (error) {

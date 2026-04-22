@@ -56,6 +56,19 @@ describe('extractSvgParts', () => {
     expect(parts.defsMarkup).toBe('<defs><circle id="pad" /></defs>')
     expect(parts.layerMarkup).toBe('<use xlink:href="#pad" />')
   })
+
+  it('preserves inherited render attributes from the renderer svg', () => {
+    const parts = extractSvgParts(
+      '<svg viewBox="0 0 1 1" stroke-linecap="round" stroke-linejoin="bevel" stroke-width="0" fill-rule="evenodd" width="1mm"><g transform="translate(0,1) scale(1,-1)"><path /></g></svg>',
+    )
+
+    expect(parts.renderAttributes).toEqual({
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'bevel',
+      'stroke-width': '0',
+      'fill-rule': 'evenodd',
+    })
+  })
 })
 
 describe('layerSortRank', () => {
@@ -119,6 +132,7 @@ function sortKinds(viewMode: 'top' | 'bottom'): LayerKind[] {
         color: '#ffffff',
         visible: true,
         status: 'ready',
+        renderAttributes: {},
       }),
     )
     .sort((a, b) => compareLayersByViewMode(a, b, viewMode))

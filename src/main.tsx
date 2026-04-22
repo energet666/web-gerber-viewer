@@ -363,6 +363,7 @@ function BoardSvg({ layers, viewBox, viewMode }: BoardSvgOnlyProps) {
         {layers.map((layer) => (
           <g
             key={layer.id}
+            {...svgAttributesToReactProps(layer.renderAttributes)}
             color={layer.color}
             style={{ color: layer.color }}
             fill="currentColor"
@@ -413,11 +414,27 @@ function createCombinedSvg(layers: UploadedLayer[], viewBox: ViewBox, viewMode: 
   const content = layers
     .map(
       (layer) =>
-        `<g color="${escapeAttribute(layer.color)}" style="color:${escapeAttribute(layer.color)}" fill="currentColor" stroke="currentColor">${layer.layerMarkup ?? ''}</g>`,
+        `<g ${serializeAttributes(layer.renderAttributes ?? {})} color="${escapeAttribute(layer.color)}" style="color:${escapeAttribute(layer.color)}" fill="currentColor" stroke="currentColor">${layer.layerMarkup ?? ''}</g>`,
     )
     .join('\n')
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" stroke-width="0" fill-rule="evenodd" viewBox="${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}">\n<rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="#161b22"/>\n<defs>${defs}</defs>\n<g transform="${createBoardTransform(viewBox, viewMode)}">\n${content}\n</g>\n</svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}">\n<rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="#161b22"/>\n<defs>${defs}</defs>\n<g transform="${createBoardTransform(viewBox, viewMode)}">\n${content}\n</g>\n</svg>\n`
+}
+
+function svgAttributesToReactProps(attributes: Record<string, string> = {}): React.SVGProps<SVGGElement> {
+  return {
+    fillRule: attributes['fill-rule'] as React.SVGProps<SVGGElement>['fillRule'],
+    strokeLinecap: attributes['stroke-linecap'] as React.SVGProps<SVGGElement>['strokeLinecap'],
+    strokeLinejoin: attributes['stroke-linejoin'] as React.SVGProps<SVGGElement>['strokeLinejoin'],
+    strokeMiterlimit: attributes['stroke-miterlimit'],
+    strokeWidth: attributes['stroke-width'],
+  }
+}
+
+function serializeAttributes(attributes: Record<string, string>): string {
+  return Object.entries(attributes)
+    .map(([name, value]) => `${name}="${escapeAttribute(value)}"`)
+    .join(' ')
 }
 
 function escapeAttribute(value: string): string {
