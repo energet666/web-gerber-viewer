@@ -328,6 +328,23 @@ input[type="file"] {
   background: #1b2632;
 }
 
+.toggle-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  color: #c5d0dc;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.toggle-control input {
+  width: 16px;
+  height: 16px;
+  accent-color: #58c594;
+}
+
 .pan-hint {
   display: inline-flex;
   align-items: center;

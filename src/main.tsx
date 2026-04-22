@@ -55,6 +55,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false)
   const [renderingLayerIds, setRenderingLayerIds] = useState<Set<string>>(new Set())
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  const [isOpaqueBoard, setIsOpaqueBoard] = useState(false)
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -65,7 +66,10 @@ function App() {
   )
   const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
   const visibleReadyLayers = sortedLayers.filter((layer) => layer.visible && layer.status === 'ready' && layer.viewBox)
-  const combinedViewBox = combineViewBoxes(visibleReadyLayers.map((layer) => layer.viewBox as ViewBox))
+  const renderedLayers = isOpaqueBoard
+    ? visibleReadyLayers.filter((layer) => isLayerFacingViewer(layer, viewMode))
+    : visibleReadyLayers
+  const combinedViewBox = combineViewBoxes(renderedLayers.map((layer) => layer.viewBox as ViewBox))
   const readyCount = layers.filter((layer) => layer.status === 'ready').length
   const errorCount = layers.filter((layer) => layer.status === 'error').length
 
@@ -117,7 +121,7 @@ function App() {
   function downloadCombinedSvg() {
     if (!combinedViewBox) return
 
-    const svg = createCombinedSvg(visibleReadyLayers, combinedViewBox, viewMode)
+    const svg = createCombinedSvg(renderedLayers, combinedViewBox, viewMode)
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -256,6 +260,14 @@ function App() {
               Bottom
             </button>
           </div>
+          <label className="toggle-control">
+            <input
+              type="checkbox"
+              checked={isOpaqueBoard}
+              onChange={(event) => setIsOpaqueBoard(event.target.checked)}
+            />
+            <span>Opaque board</span>
+          </label>
           <span className="toolbar-divider" />
           <span className="pan-hint">
             <Hand size={15} />
@@ -272,7 +284,7 @@ function App() {
         <div className="canvas-wrap">
           {combinedViewBox ? (
             <BoardViewport
-              layers={visibleReadyLayers}
+              layers={renderedLayers}
               viewBox={combinedViewBox}
               viewMode={viewMode}
               viewport={viewport}
@@ -288,6 +300,10 @@ function App() {
       </section>
     </main>
   )
+}
+
+function isLayerFacingViewer(layer: UploadedLayer, viewMode: BoardViewMode): boolean {
+  return layer.side === viewMode || layer.side === 'both'
 }
 
 type ViewportState = {
