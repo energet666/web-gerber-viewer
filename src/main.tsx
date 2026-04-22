@@ -17,8 +17,9 @@ import { readAndRenderFile } from './domain/renderGerber'
 import {
   LAYER_LABELS,
   combineViewBoxes,
+  compareLayersByViewMode,
   createLayerId,
-  layerSortRank,
+  type BoardViewMode,
   type UploadedLayer,
   type ViewBox,
 } from './domain/layers'
@@ -38,12 +39,13 @@ function App() {
   const [layers, setLayers] = useState<UploadedLayer[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const sortedLayers = useMemo(
-    () => [...layers].sort((a, b) => layerSortRank(a.kind) - layerSortRank(b.kind) || a.fileName.localeCompare(b.fileName)),
-    [layers],
+    () => [...layers].sort((a, b) => compareLayersByViewMode(a, b, viewMode)),
+    [layers, viewMode],
   )
   const visibleReadyLayers = sortedLayers.filter((layer) => layer.visible && layer.status === 'ready' && layer.viewBox)
   const combinedViewBox = combineViewBoxes(visibleReadyLayers.map((layer) => layer.viewBox as ViewBox))
@@ -74,7 +76,7 @@ function App() {
   function downloadCombinedSvg() {
     if (!combinedViewBox) return
 
-    const svg = createCombinedSvg(visibleReadyLayers, combinedViewBox)
+    const svg = createCombinedSvg(visibleReadyLayers, combinedViewBox, viewMode)
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -168,6 +170,23 @@ function App() {
             <ZoomIn size={17} />
           </button>
           <span className="toolbar-divider" />
+          <div className="segmented-control" aria-label="Board side view">
+            <button
+              className={viewMode === 'top' ? 'is-selected' : ''}
+              type="button"
+              onClick={() => setViewMode('top')}
+            >
+              Top
+            </button>
+            <button
+              className={viewMode === 'bottom' ? 'is-selected' : ''}
+              type="button"
+              onClick={() => setViewMode('bottom')}
+            >
+              Bottom
+            </button>
+          </div>
+          <span className="toolbar-divider" />
           <span className="pan-hint">
             <Hand size={15} />
             Drag to pan
@@ -185,6 +204,7 @@ function App() {
             <BoardViewport
               layers={visibleReadyLayers}
               viewBox={combinedViewBox}
+              viewMode={viewMode}
               viewport={viewport}
               onViewportChange={setViewport}
             />
@@ -242,11 +262,12 @@ function DropTarget({ active, loading, onBrowse, onDragState, onFiles }: DropTar
 type BoardSvgProps = {
   layers: UploadedLayer[]
   viewBox: ViewBox
+  viewMode: BoardViewMode
   viewport: ViewportState
   onViewportChange: React.Dispatch<React.SetStateAction<ViewportState>>
 }
 
-function BoardViewport({ layers, viewBox, viewport, onViewportChange }: BoardSvgProps) {
+function BoardViewport({ layers, viewBox, viewMode, viewport, onViewportChange }: BoardSvgProps) {
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null)
 
   function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
@@ -314,7 +335,7 @@ function BoardViewport({ layers, viewBox, viewport, onViewportChange }: BoardSvg
           transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
         }}
       >
-        <BoardSvg layers={layers} viewBox={viewBox} />
+        <BoardSvg layers={layers} viewBox={viewBox} viewMode={viewMode} />
       </div>
     </div>
   )
@@ -323,9 +344,10 @@ function BoardViewport({ layers, viewBox, viewport, onViewportChange }: BoardSvg
 type BoardSvgOnlyProps = {
   layers: UploadedLayer[]
   viewBox: ViewBox
+  viewMode: BoardViewMode
 }
 
-function BoardSvg({ layers, viewBox }: BoardSvgOnlyProps) {
+function BoardSvg({ layers, viewBox, viewMode }: BoardSvgOnlyProps) {
   const viewBoxValue = `${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`
 
   return (
@@ -337,7 +359,7 @@ function BoardSvg({ layers, viewBox }: BoardSvgOnlyProps) {
     >
       <rect x={viewBox.minX} y={viewBox.minY} width={viewBox.width} height={viewBox.height} fill="#161b22" rx="120" />
       <defs dangerouslySetInnerHTML={{ __html: layers.map((layer) => stripDefsWrapper(layer.defsMarkup ?? '')).join('\n') }} />
-      <g transform={createGerberTransform(viewBox)}>
+      <g transform={createBoardTransform(viewBox, viewMode)}>
         {layers.map((layer) => (
           <g
             key={layer.id}
@@ -368,11 +390,25 @@ function createGerberTransform(viewBox: ViewBox): string {
   return `translate(0,${viewBox.height + 2 * viewBox.minY}) scale(1,-1)`
 }
 
+function createBoardTransform(viewBox: ViewBox, viewMode: BoardViewMode): string {
+  const transforms = [createGerberTransform(viewBox)]
+
+  if (viewMode === 'bottom') {
+    transforms.push(createBottomViewMirrorTransform(viewBox))
+  }
+
+  return transforms.join(' ')
+}
+
+export function createBottomViewMirrorTransform(viewBox: ViewBox): string {
+  return `translate(${2 * viewBox.minX + viewBox.width},0) scale(-1,1)`
+}
+
 function stripDefsWrapper(defsMarkup: string): string {
   return defsMarkup.replace(/<\/?defs\b[^>]*>/gi, '')
 }
 
-function createCombinedSvg(layers: UploadedLayer[], viewBox: ViewBox): string {
+function createCombinedSvg(layers: UploadedLayer[], viewBox: ViewBox, viewMode: BoardViewMode): string {
   const defs = layers.map((layer) => stripDefsWrapper(layer.defsMarkup ?? '')).join('\n')
   const content = layers
     .map(
@@ -381,7 +417,7 @@ function createCombinedSvg(layers: UploadedLayer[], viewBox: ViewBox): string {
     )
     .join('\n')
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" stroke-width="0" fill-rule="evenodd" viewBox="${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}">\n<rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="#161b22"/>\n<defs>${defs}</defs>\n<g transform="${createGerberTransform(viewBox)}">\n${content}\n</g>\n</svg>\n`
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" stroke-linecap="round" stroke-linejoin="round" stroke-width="0" fill-rule="evenodd" viewBox="${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}">\n<rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="#161b22"/>\n<defs>${defs}</defs>\n<g transform="${createBoardTransform(viewBox, viewMode)}">\n${content}\n</g>\n</svg>\n`
 }
 
 function escapeAttribute(value: string): string {

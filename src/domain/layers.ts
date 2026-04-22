@@ -13,6 +13,8 @@ export type LayerSide = 'top' | 'bottom' | 'both' | 'unknown'
 
 export type LayerStatus = 'ready' | 'error'
 
+export type BoardViewMode = 'top' | 'bottom'
+
 export type ViewBox = {
   minX: number
   minY: number
@@ -84,27 +86,36 @@ export function inferLayerSide(kind: LayerKind): LayerSide {
   return 'unknown'
 }
 
-export function layerSortRank(kind: LayerKind): number {
-  switch (kind) {
-    case 'bottom-copper':
-      return 10
-    case 'bottom-mask':
-      return 20
-    case 'top-copper':
-      return 30
-    case 'top-mask':
-      return 40
-    case 'bottom-silk':
-      return 50
-    case 'top-silk':
-      return 60
-    case 'outline':
-      return 70
-    case 'drill':
-      return 80
-    case 'unknown':
-      return 90
-  }
+const topViewLayerOrder: Record<LayerKind, number> = {
+  'bottom-silk': 10,
+  'bottom-mask': 20,
+  'bottom-copper': 30,
+  'top-copper': 40,
+  'top-mask': 50,
+  'top-silk': 60,
+  unknown: 70,
+  outline: 80,
+  drill: 90,
+}
+
+const bottomViewLayerOrder: Record<LayerKind, number> = {
+  'top-silk': 10,
+  'top-mask': 20,
+  'top-copper': 30,
+  'bottom-copper': 40,
+  'bottom-mask': 50,
+  'bottom-silk': 60,
+  unknown: 70,
+  outline: 80,
+  drill: 90,
+}
+
+export function layerSortRank(kind: LayerKind, viewMode: BoardViewMode = 'top'): number {
+  return viewMode === 'top' ? topViewLayerOrder[kind] : bottomViewLayerOrder[kind]
+}
+
+export function compareLayersByViewMode(a: UploadedLayer, b: UploadedLayer, viewMode: BoardViewMode): number {
+  return layerSortRank(a.kind, viewMode) - layerSortRank(b.kind, viewMode) || a.fileName.localeCompare(b.fileName)
 }
 
 export function combineViewBoxes(viewBoxes: ViewBox[]): ViewBox | null {
