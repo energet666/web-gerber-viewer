@@ -56,6 +56,7 @@ function App() {
   const [renderingLayerIds, setRenderingLayerIds] = useState<Set<string>>(new Set())
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isOpaqueBoard, setIsOpaqueBoard] = useState(false)
+  const [useRealMasks, setUseRealMasks] = useState(false)
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -121,7 +122,7 @@ function App() {
   function downloadCombinedSvg() {
     if (!combinedViewBox) return
 
-    const svg = createCombinedSvg(renderedLayers, combinedViewBox, viewMode)
+    const svg = createCombinedSvg(renderedLayers, combinedViewBox, viewMode, useRealMasks)
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -268,6 +269,14 @@ function App() {
             />
             <span>Opaque board</span>
           </label>
+          <label className="toggle-control">
+            <input
+              type="checkbox"
+              checked={useRealMasks}
+              onChange={(event) => setUseRealMasks(event.target.checked)}
+            />
+            <span>Real masks</span>
+          </label>
           <span className="toolbar-divider" />
           <span className="pan-hint">
             <Hand size={15} />
@@ -287,6 +296,7 @@ function App() {
               layers={renderedLayers}
               viewBox={combinedViewBox}
               viewMode={viewMode}
+              useRealMasks={useRealMasks}
               viewport={viewport}
               onViewportChange={setViewport}
             />
@@ -350,11 +360,19 @@ type BoardSvgProps = {
   layers: UploadedLayer[]
   viewBox: ViewBox
   viewMode: BoardViewMode
+  useRealMasks: boolean
   viewport: ViewportState
   onViewportChange: React.Dispatch<React.SetStateAction<ViewportState>>
 }
 
-function BoardViewport({ layers, viewBox, viewMode, viewport, onViewportChange }: BoardSvgProps) {
+function BoardViewport({
+  layers,
+  viewBox,
+  viewMode,
+  useRealMasks,
+  viewport,
+  onViewportChange,
+}: BoardSvgProps) {
   const dragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null)
 
   function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
@@ -422,7 +440,12 @@ function BoardViewport({ layers, viewBox, viewMode, viewport, onViewportChange }
           transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
         }}
       >
-        <BoardSvg layers={layers} viewBox={viewBox} viewMode={viewMode} />
+        <BoardSvg
+          layers={layers}
+          viewBox={viewBox}
+          viewMode={viewMode}
+          useRealMasks={useRealMasks}
+        />
       </div>
     </div>
   )
@@ -432,10 +455,12 @@ type BoardSvgOnlyProps = {
   layers: UploadedLayer[]
   viewBox: ViewBox
   viewMode: BoardViewMode
+  useRealMasks: boolean
 }
 
-function BoardSvg({ layers, viewBox, viewMode }: BoardSvgOnlyProps) {
+function BoardSvg({ layers, viewBox, viewMode, useRealMasks }: BoardSvgOnlyProps) {
   const viewBoxValue = `${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`
+  const defsMarkup = createDefsMarkup(layers, viewBox, useRealMasks)
 
   return (
     <svg
@@ -445,18 +470,29 @@ function BoardSvg({ layers, viewBox, viewMode }: BoardSvgOnlyProps) {
       aria-label="Rendered PCB layers"
     >
       <rect x={viewBox.minX} y={viewBox.minY} width={viewBox.width} height={viewBox.height} fill="#161b22" rx="120" />
-      <defs dangerouslySetInnerHTML={{ __html: layers.map((layer) => stripDefsWrapper(layer.defsMarkup ?? '')).join('\n') }} />
+      <defs dangerouslySetInnerHTML={{ __html: defsMarkup }} />
       <g transform={createBoardTransform(viewBox, viewMode)}>
         {layers.map((layer) => (
-          <g
-            key={layer.id}
-            {...svgAttributesToReactProps(layer.renderAttributes)}
-            color={layer.color}
-            style={{ color: layer.color }}
-            fill="currentColor"
-            stroke="currentColor"
-            dangerouslySetInnerHTML={{ __html: layer.layerMarkup ?? '' }}
-          />
+          useRealMasks && isSolderMaskLayer(layer.kind) ? (
+            <g
+              key={layer.id}
+              mask={`url(#${createRealMaskId(layer)})`}
+              color={layer.color}
+              style={{ color: layer.color }}
+            >
+              <rect x={viewBox.minX} y={viewBox.minY} width={viewBox.width} height={viewBox.height} fill="currentColor" stroke="none" />
+            </g>
+          ) : (
+            <g
+              key={layer.id}
+              {...svgAttributesToReactProps(layer.renderAttributes)}
+              color={layer.color}
+              style={{ color: layer.color }}
+              fill="currentColor"
+              stroke="currentColor"
+              dangerouslySetInnerHTML={{ __html: layer.layerMarkup ?? '' }}
+            />
+          )
         ))}
       </g>
     </svg>
@@ -496,16 +532,62 @@ function stripDefsWrapper(defsMarkup: string): string {
   return defsMarkup.replace(/<\/?defs\b[^>]*>/gi, '')
 }
 
-function createCombinedSvg(layers: UploadedLayer[], viewBox: ViewBox, viewMode: BoardViewMode): string {
-  const defs = layers.map((layer) => stripDefsWrapper(layer.defsMarkup ?? '')).join('\n')
+function createDefsMarkup(
+  layers: UploadedLayer[],
+  viewBox: ViewBox,
+  useRealMasks: boolean,
+): string {
+  const layerDefs = layers.map((layer) => stripDefsWrapper(layer.defsMarkup ?? '')).join('\n')
+  const realMaskDefs = useRealMasks
+    ? layers
+        .filter((layer) => isSolderMaskLayer(layer.kind))
+        .map((layer) => createRealMaskDef(layer, viewBox))
+        .join('\n')
+    : ''
+
+  return [layerDefs, realMaskDefs].filter(Boolean).join('\n')
+}
+
+function createRealMaskDef(layer: UploadedLayer, viewBox: ViewBox): string {
+  const openingAttributes = serializeAttributes(layer.renderAttributes ?? {})
+
+  return `<mask id="${createRealMaskId(layer)}" maskUnits="userSpaceOnUse" x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}">\n<rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="#fff"/>\n<g ${openingAttributes} color="#000" fill="#000" stroke="#000">${layer.layerMarkup ?? ''}</g>\n</mask>`
+}
+
+function isSolderMaskLayer(kind: LayerKind): boolean {
+  return kind === 'top-mask' || kind === 'bottom-mask'
+}
+
+function createRealMaskId(layer: UploadedLayer): string {
+  return `real-mask-${createSafeSvgId(layer.id)}`
+}
+
+function createSafeSvgId(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '-').replace(/^-+/, '') || 'layer'
+}
+
+function createCombinedSvg(
+  layers: UploadedLayer[],
+  viewBox: ViewBox,
+  viewMode: BoardViewMode,
+  useRealMasks: boolean,
+): string {
+  const defs = createDefsMarkup(layers, viewBox, useRealMasks)
   const content = layers
-    .map(
-      (layer) =>
-        `<g ${serializeAttributes(layer.renderAttributes ?? {})} color="${escapeAttribute(layer.color)}" style="color:${escapeAttribute(layer.color)}" fill="currentColor" stroke="currentColor">${layer.layerMarkup ?? ''}</g>`,
-    )
+    .map((layer) => createLayerSvgMarkup(layer, viewBox, useRealMasks))
     .join('\n')
 
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}">\n<rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="#161b22"/>\n<defs>${defs}</defs>\n<g transform="${createBoardTransform(viewBox, viewMode)}">\n${content}\n</g>\n</svg>\n`
+}
+
+function createLayerSvgMarkup(layer: UploadedLayer, viewBox: ViewBox, useRealMasks: boolean): string {
+  const colorAttributes = `color="${escapeAttribute(layer.color)}" style="color:${escapeAttribute(layer.color)}"`
+
+  if (useRealMasks && isSolderMaskLayer(layer.kind)) {
+    return `<g mask="url(#${createRealMaskId(layer)})" ${colorAttributes}><rect x="${viewBox.minX}" y="${viewBox.minY}" width="${viewBox.width}" height="${viewBox.height}" fill="currentColor" stroke="none"/></g>`
+  }
+
+  return `<g ${serializeAttributes(layer.renderAttributes ?? {})} ${colorAttributes} fill="currentColor" stroke="currentColor">${layer.layerMarkup ?? ''}</g>`
 }
 
 function svgAttributesToReactProps(attributes: Record<string, string> = {}): React.SVGProps<SVGGElement> {
