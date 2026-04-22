@@ -2,6 +2,8 @@ import React, { useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   Download,
+  PanelLeftClose,
+  PanelLeftOpen,
   Hand,
   Eye,
   EyeOff,
@@ -52,6 +54,7 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [renderingLayerIds, setRenderingLayerIds] = useState<Set<string>>(new Set())
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -124,7 +127,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${isSidebarOpen ? '' : 'is-sidebar-hidden'}`}>
       <aside className="sidebar">
         <div className="brand">
           <div>
@@ -218,6 +221,14 @@ function App() {
 
       <section className="viewer">
         <div className="toolbar" aria-label="Viewer controls">
+          <button
+            className="tool-button"
+            title={isSidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            onClick={() => setIsSidebarOpen((current) => !current)}
+          >
+            {isSidebarOpen ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+          </button>
+          <span className="toolbar-spacer" />
           <button className="tool-button" title="Fit to view" onClick={() => setViewport({ zoom: 1, panX: 0, panY: 0 })}>
             <Maximize2 size={17} />
           </button>
