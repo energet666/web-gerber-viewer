@@ -6,6 +6,8 @@ This is a static, browser-only Gerber viewer built with Vite, React, and TypeScr
 It has no backend. Files are read locally in the browser with the File API and rendered
 with `gerber-to-svg`.
 
+The public repository is `https://github.com/energet666/web-gerber-viewer.git`.
+
 ## Commands
 
 - `npm install` installs dependencies.
@@ -31,6 +33,21 @@ will shift relative to each other.
 The current implementation extracts each layer's `defs` and raw geometry, then applies
 one shared Gerber Y-axis transform based on the combined viewBox. Preserve that behavior
 unless replacing the renderer with a different coordinate normalization strategy.
+
+Layer order has two separate meanings:
+
+- Rendering order is bottom-to-top so upper visible layers are painted last.
+- Sidebar order is reversed so the visually top-most layer appears first in the list.
+
+Manual layer assignment must rerender the file because the selected type affects renderer
+options, especially Gerber vs Excellon/drill parsing.
+
+`Opaque board` filters visible layers to the side facing the current view (`top` or `bottom`)
+plus both-side layers such as outline/drill.
+
+`Real masks` renders solder mask layers as a full-viewBox mask-colored rectangle with the
+solder mask layer geometry cut out. It intentionally ignores outline shape for now; previous
+attempts to fill outline stroke geometry produced incorrect sector fills on real boards.
 
 ## Git Hygiene
 
