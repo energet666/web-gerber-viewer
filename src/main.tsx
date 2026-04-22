@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   Download,
+  Hand,
   Eye,
   EyeOff,
   FileWarning,
@@ -23,6 +24,9 @@ import {
 } from './domain/layers'
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
+const MIN_ZOOM = 0.2
+const MAX_ZOOM = 8
+const ZOOM_STEP = 0.2
 
 root.render(
   <React.StrictMode>
@@ -34,7 +38,7 @@ function App() {
   const [layers, setLayers] = useState<UploadedLayer[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [zoom, setZoom] = useState(1)
+  const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const sortedLayers = useMemo(
@@ -53,7 +57,7 @@ function App() {
     setIsLoading(true)
     const rendered = await Promise.all(files.map((file, index) => readAndRenderFile(file, createLayerId(file, index))))
     setLayers(rendered)
-    setZoom(1)
+    setViewport({ zoom: 1, panX: 0, panY: 0 })
     setIsLoading(false)
   }
 
@@ -153,16 +157,21 @@ function App() {
 
       <section className="viewer">
         <div className="toolbar" aria-label="Viewer controls">
-          <button className="tool-button" title="Fit to view" onClick={() => setZoom(1)}>
+          <button className="tool-button" title="Fit to view" onClick={() => setViewport({ zoom: 1, panX: 0, panY: 0 })}>
             <Maximize2 size={17} />
           </button>
-          <button className="tool-button" title="Zoom out" onClick={() => setZoom((current) => Math.max(0.2, current - 0.2))}>
+          <button className="tool-button" title="Zoom out" onClick={() => setViewport((current) => zoomFromCenter(current, -ZOOM_STEP))}>
             <ZoomOut size={17} />
           </button>
-          <span className="zoom-value">{Math.round(zoom * 100)}%</span>
-          <button className="tool-button" title="Zoom in" onClick={() => setZoom((current) => Math.min(5, current + 0.2))}>
+          <span className="zoom-value">{Math.round(viewport.zoom * 100)}%</span>
+          <button className="tool-button" title="Zoom in" onClick={() => setViewport((current) => zoomFromCenter(current, ZOOM_STEP))}>
             <ZoomIn size={17} />
           </button>
+          <span className="toolbar-divider" />
+          <span className="pan-hint">
+            <Hand size={15} />
+            Drag to pan
+          </span>
           <button className="tool-button" title="Reset preview" onClick={() => setLayers([])}>
             <RotateCcw size={17} />
           </button>
@@ -173,7 +182,12 @@ function App() {
 
         <div className="canvas-wrap">
           {combinedViewBox ? (
-            <BoardSvg layers={visibleReadyLayers} viewBox={combinedViewBox} zoom={zoom} />
+            <BoardViewport
+              layers={visibleReadyLayers}
+              viewBox={combinedViewBox}
+              viewport={viewport}
+              onViewportChange={setViewport}
+            />
           ) : (
             <div className="canvas-empty">
               <Upload size={32} />
@@ -184,6 +198,12 @@ function App() {
       </section>
     </main>
   )
+}
+
+type ViewportState = {
+  zoom: number
+  panX: number
+  panY: number
 }
 
 type DropTargetProps = {
@@ -222,16 +242,95 @@ function DropTarget({ active, loading, onBrowse, onDragState, onFiles }: DropTar
 type BoardSvgProps = {
   layers: UploadedLayer[]
   viewBox: ViewBox
-  zoom: number
+  viewport: ViewportState
+  onViewportChange: React.Dispatch<React.SetStateAction<ViewportState>>
 }
 
-function BoardSvg({ layers, viewBox, zoom }: BoardSvgProps) {
+function BoardViewport({ layers, viewBox, viewport, onViewportChange }: BoardSvgProps) {
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; panX: number; panY: number } | null>(null)
+
+  function handleWheel(event: React.WheelEvent<HTMLDivElement>) {
+    event.preventDefault()
+
+    const rect = event.currentTarget.getBoundingClientRect()
+    const cursorX = event.clientX - rect.left - rect.width / 2
+    const cursorY = event.clientY - rect.top - rect.height / 2
+    const zoomFactor = event.deltaY < 0 ? 1.12 : 1 / 1.12
+
+    onViewportChange((current) => {
+      const nextZoom = clamp(current.zoom * zoomFactor, MIN_ZOOM, MAX_ZOOM)
+      const scale = nextZoom / current.zoom
+
+      return {
+        zoom: nextZoom,
+        panX: cursorX - (cursorX - current.panX) * scale,
+        panY: cursorY - (cursorY - current.panY) * scale,
+      }
+    })
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: viewport.panX,
+      panY: viewport.panY,
+    }
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    onViewportChange({
+      zoom: viewport.zoom,
+      panX: drag.panX + event.clientX - drag.startX,
+      panY: drag.panY + event.clientY - drag.startY,
+    })
+  }
+
+  function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    if (dragRef.current?.pointerId === event.pointerId) {
+      dragRef.current = null
+    }
+  }
+
+  return (
+    <div
+      className="board-viewport"
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+    >
+      <div
+        className="board-stage"
+        style={{
+          transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
+        }}
+      >
+        <BoardSvg layers={layers} viewBox={viewBox} />
+      </div>
+    </div>
+  )
+}
+
+type BoardSvgOnlyProps = {
+  layers: UploadedLayer[]
+  viewBox: ViewBox
+}
+
+function BoardSvg({ layers, viewBox }: BoardSvgOnlyProps) {
   const viewBoxValue = `${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`
 
   return (
     <svg
       className="board-svg"
-      style={{ width: `${Math.round(86 * zoom)}%` }}
       viewBox={viewBoxValue}
       role="img"
       aria-label="Rendered PCB layers"
@@ -252,6 +351,17 @@ function BoardSvg({ layers, viewBox, zoom }: BoardSvgProps) {
       </g>
     </svg>
   )
+}
+
+function zoomFromCenter(viewport: ViewportState, delta: number): ViewportState {
+  return {
+    ...viewport,
+    zoom: clamp(viewport.zoom + delta, MIN_ZOOM, MAX_ZOOM),
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 function createGerberTransform(viewBox: ViewBox): string {
