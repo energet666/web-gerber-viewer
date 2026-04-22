@@ -60,6 +60,7 @@ function App() {
     () => [...layers].sort((a, b) => compareLayersByViewMode(a, b, viewMode)),
     [layers, viewMode],
   )
+  const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
   const visibleReadyLayers = sortedLayers.filter((layer) => layer.visible && layer.status === 'ready' && layer.viewBox)
   const combinedViewBox = combineViewBoxes(visibleReadyLayers.map((layer) => layer.viewBox as ViewBox))
   const readyCount = layers.filter((layer) => layer.status === 'ready').length
@@ -130,9 +131,6 @@ function App() {
             <h1>Gerber Viewer</h1>
             <p>{layers.length ? `${readyCount} rendered, ${errorCount} failed` : 'Local PCB layer preview'}</p>
           </div>
-          <button className="icon-button" title="Load files" onClick={() => fileInputRef.current?.click()}>
-            <Upload size={18} />
-          </button>
         </div>
 
         <input
@@ -148,6 +146,7 @@ function App() {
 
         <DropTarget
           active={isDragging}
+          compact={layers.length > 0}
           loading={isLoading}
           onBrowse={() => fileInputRef.current?.click()}
           onDragState={setIsDragging}
@@ -160,15 +159,18 @@ function App() {
             <span>{layers.length}</span>
           </div>
 
-          {sortedLayers.length === 0 ? (
+          {sidebarLayers.length === 0 ? (
             <p className="empty-copy">Drop Gerber and drill files to build a local preview.</p>
           ) : (
             <div className="layer-list">
-              {sortedLayers.map((layer) => {
+              {sidebarLayers.map((layer) => {
                 const isRenderingLayer = renderingLayerIds.has(layer.id)
 
                 return (
-                  <article className={`layer-row ${layer.status === 'error' ? 'has-error' : ''}`} key={layer.id}>
+                  <article
+                    className={`layer-row ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
+                    key={layer.id}
+                  >
                     <button
                       className="icon-button compact"
                       title={layer.visible ? 'Hide layer' : 'Show layer'}
@@ -285,16 +287,17 @@ type ViewportState = {
 
 type DropTargetProps = {
   active: boolean
+  compact: boolean
   loading: boolean
   onBrowse: () => void
   onDragState: (active: boolean) => void
   onFiles: (files: FileList) => void
 }
 
-function DropTarget({ active, loading, onBrowse, onDragState, onFiles }: DropTargetProps) {
+function DropTarget({ active, compact, loading, onBrowse, onDragState, onFiles }: DropTargetProps) {
   return (
     <section
-      className={`drop-target ${active ? 'is-active' : ''}`}
+      className={`drop-target ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`}
       onDragEnter={(event) => {
         event.preventDefault()
         onDragState(true)
@@ -307,8 +310,8 @@ function DropTarget({ active, loading, onBrowse, onDragState, onFiles }: DropTar
         onFiles(event.dataTransfer.files)
       }}
     >
-      <Upload size={24} />
-      <p>{loading ? 'Rendering files...' : 'Drop Gerber files here'}</p>
+      {compact ? null : <Upload size={24} />}
+      <p>{loading ? 'Rendering files...' : compact ? 'Drop or choose another set' : 'Drop Gerber files here'}</p>
       <button className="text-button" onClick={onBrowse}>
         Choose files
       </button>

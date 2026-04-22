@@ -15,6 +15,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 button,
@@ -41,7 +42,8 @@ input[type="file"] {
 .app-shell {
   display: grid;
   grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #0b0f14;
 }
 
@@ -49,10 +51,12 @@ input[type="file"] {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow: auto;
   border-right: 1px solid #27313d;
   background: #11171f;
   padding: 20px;
   min-width: 0;
+  min-height: 0;
 }
 
 .brand {
@@ -116,6 +120,14 @@ input[type="file"] {
   text-align: center;
 }
 
+.drop-target.is-compact {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
 .drop-target.is-active {
   border-color: #58c594;
   background: #112019;
@@ -124,6 +136,15 @@ input[type="file"] {
 .drop-target p {
   margin: 0;
   font-weight: 650;
+}
+
+.drop-target.is-compact p {
+  justify-self: start;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
 }
 
 .text-button {
@@ -164,14 +185,18 @@ input[type="file"] {
 
 .layer-row {
   display: grid;
-  grid-template-columns: 32px 34px minmax(0, 1fr) 20px;
+  grid-template-columns: 32px 34px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  min-height: 58px;
+  min-height: 60px;
   border: 1px solid #2a3644;
   border-radius: 8px;
   background: #151d26;
   padding: 10px;
+}
+
+.layer-row.has-error-icon {
+  grid-template-columns: 32px 34px minmax(0, 1fr) 20px;
 }
 
 .layer-row.has-error {
@@ -209,8 +234,8 @@ input[type="file"] {
   display: block;
   width: 100%;
   min-width: 0;
-  height: 26px;
-  margin-top: 4px;
+  height: 23px;
+  margin-top: 2px;
   border: 1px solid #344150;
   border-radius: 7px;
   color: #dfe8f0;
@@ -233,6 +258,8 @@ input[type="file"] {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background:
     linear-gradient(#10161d 1px, transparent 1px),
     linear-gradient(90deg, #10161d 1px, transparent 1px),
@@ -362,12 +389,20 @@ input[type="file"] {
 }
 
 @media (max-width: 800px) {
+  body {
+    overflow: auto;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
     grid-template-rows: auto minmax(420px, 1fr);
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
   }
 
   .sidebar {
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid #27313d;
   }
