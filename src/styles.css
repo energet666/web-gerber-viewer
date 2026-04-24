@@ -205,6 +205,14 @@ input[type="file"] {
   padding: 0;
 }
 
+.layer-file-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
 .layer-file-name {
   display: block;
   min-width: 0;
@@ -216,6 +224,17 @@ input[type="file"] {
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.layer-file-duplicate-badge {
+  border: 1px solid #3a4a5d;
+  border-radius: 999px;
+  color: #cbd7e4;
+  background: #101821;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .layer-controls {

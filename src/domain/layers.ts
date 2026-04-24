@@ -28,6 +28,7 @@ export type UploadedLayer = {
   id: string
   fileName: string
   rawText: string
+  contentHash?: string
   kind: LayerKind
   side: LayerSide
   color: string

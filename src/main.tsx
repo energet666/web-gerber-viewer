@@ -15,12 +15,13 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import './styles.css'
-import { readAndRenderFile, renderLayerText } from './domain/renderGerber'
+import { renderLayerText } from './domain/renderGerber'
 import {
   LAYER_LABELS,
   combineReadyLayerViewBoxes,
   compareLayersByViewMode,
   createLayerId,
+  inferLayerKind,
   type BoardViewMode,
   type LayerKind,
   type UploadedLayer,
@@ -68,6 +69,7 @@ function App() {
     [layers, viewMode],
   )
   const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
+  const fileNameOccurrences = useMemo(() => createFileNameOccurrences(layers), [layers])
   const readyLayers = sortedLayers.filter((layer) => layer.status === 'ready' && layer.viewBox)
   const activeSoloLayerId = readyLayers.some((layer) => layer.id === soloLayerId) ? soloLayerId : null
   const visibleReadyLayers = readyLayers.filter((layer) => layer.visible)
@@ -86,9 +88,31 @@ function App() {
     if (files.length === 0) return
 
     setIsLoading(true)
-    const rendered = await Promise.all(files.map((file, index) => readAndRenderFile(file, createLayerId(file, index))))
-    setLayers(rendered)
-    setSoloLayerId(null)
+    const knownFileKeys = new Set(layers.map((layer) => createFileContentKey(layer.fileName, getLayerContentHash(layer))))
+    const nextFiles: Array<{ file: File; rawText: string; contentHash: string }> = []
+
+    for (const file of files) {
+      const [rawText, contentHash] = await Promise.all([file.text(), hashFile(file)])
+      const fileKey = createFileContentKey(file.name, contentHash)
+
+      if (knownFileKeys.has(fileKey)) continue
+
+      knownFileKeys.add(fileKey)
+      nextFiles.push({ file, rawText, contentHash })
+    }
+
+    if (nextFiles.length === 0) {
+      setIsLoading(false)
+      return
+    }
+
+    const rendered = await Promise.all(
+      nextFiles.map(async ({ file, rawText, contentHash }, index) => ({
+        ...(await renderLayerText(rawText, file.name, createLayerId(file, layers.length + index), inferLayerKind(file.name))),
+        contentHash,
+      })),
+    )
+    setLayers((currentLayers) => [...currentLayers, ...rendered])
     setViewport({ zoom: 1, panX: 0, panY: 0 })
     setIsLoading(false)
   }
@@ -153,6 +177,7 @@ function App() {
 
         return {
           ...nextLayer,
+          contentHash: currentLayer.contentHash,
           visible: nextLayer.status === 'ready' ? currentLayer.visible || currentLayer.status === 'error' : false,
         }
       }),
@@ -237,13 +262,19 @@ function App() {
               {sidebarLayers.map((layer) => {
                 const isRenderingLayer = renderingLayerIds.has(layer.id)
                 const isSoloLayer = activeSoloLayerId === layer.id
+                const fileNameOccurrence = fileNameOccurrences.get(layer.id)
 
                 return (
                   <article
                     className={`layer-row ${isSoloLayer ? 'is-solo' : ''} ${activeSoloLayerId && !isSoloLayer ? 'is-muted-by-solo' : ''} ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
                     key={layer.id}
                   >
-                    <strong className="layer-file-name">{layer.fileName}</strong>
+                    <div className="layer-file-heading">
+                      {fileNameOccurrence && fileNameOccurrence.total > 1 ? (
+                        <span className="layer-file-duplicate-badge">#{fileNameOccurrence.index}</span>
+                      ) : null}
+                      <strong className="layer-file-name">{layer.fileName}</strong>
+                    </div>
                     <div className="layer-controls">
                       <button
                         className="icon-button compact"
@@ -401,6 +432,42 @@ function isLayerFacingViewer(layer: UploadedLayer, viewMode: BoardViewMode): boo
 
 function hasDraggedFiles(dataTransfer: DataTransfer): boolean {
   return Array.from(dataTransfer.types).includes('Files')
+}
+
+function getLayerContentHash(layer: UploadedLayer): string {
+  return layer.contentHash ?? layer.rawText
+}
+
+function createFileContentKey(fileName: string, contentHash: string): string {
+  return `${fileName}\0${contentHash}`
+}
+
+async function hashFile(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+type FileNameOccurrence = {
+  index: number
+  total: number
+}
+
+function createFileNameOccurrences(layers: UploadedLayer[]): Map<string, FileNameOccurrence> {
+  const totals = new Map<string, number>()
+  const seen = new Map<string, number>()
+  const occurrences = new Map<string, FileNameOccurrence>()
+
+  for (const layer of layers) {
+    totals.set(layer.fileName, (totals.get(layer.fileName) ?? 0) + 1)
+  }
+
+  for (const layer of layers) {
+    const nextIndex = (seen.get(layer.fileName) ?? 0) + 1
+    seen.set(layer.fileName, nextIndex)
+    occurrences.set(layer.id, { index: nextIndex, total: totals.get(layer.fileName) ?? 1 })
+  }
+
+  return occurrences
 }
 
 type ViewportState = {
