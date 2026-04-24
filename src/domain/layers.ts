@@ -137,6 +137,14 @@ export function combineViewBoxes(viewBoxes: ViewBox[]): ViewBox | null {
   }
 }
 
+export function combineReadyLayerViewBoxes(layers: UploadedLayer[]): ViewBox | null {
+  return combineViewBoxes(
+    layers
+      .filter((layer): layer is UploadedLayer & { viewBox: ViewBox } => layer.status === 'ready' && Boolean(layer.viewBox))
+      .map((layer) => layer.viewBox),
+  )
+}
+
 export function parseViewBox(svgMarkup: string): ViewBox | null {
   const match = svgMarkup.match(/\bviewBox=["']([^"']+)["']/i)
   if (!match) return null

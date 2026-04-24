@@ -18,7 +18,7 @@ import './styles.css'
 import { readAndRenderFile, renderLayerText } from './domain/renderGerber'
 import {
   LAYER_LABELS,
-  combineViewBoxes,
+  combineReadyLayerViewBoxes,
   compareLayersByViewMode,
   createLayerId,
   type BoardViewMode,
@@ -66,11 +66,12 @@ function App() {
     [layers, viewMode],
   )
   const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
-  const visibleReadyLayers = sortedLayers.filter((layer) => layer.visible && layer.status === 'ready' && layer.viewBox)
+  const readyLayers = sortedLayers.filter((layer) => layer.status === 'ready' && layer.viewBox)
+  const visibleReadyLayers = readyLayers.filter((layer) => layer.visible)
   const renderedLayers = isOpaqueBoard
     ? visibleReadyLayers.filter((layer) => isLayerFacingViewer(layer, viewMode))
     : visibleReadyLayers
-  const combinedViewBox = combineViewBoxes(renderedLayers.map((layer) => layer.viewBox as ViewBox))
+  const combinedViewBox = combineReadyLayerViewBoxes(sortedLayers)
   const readyCount = layers.filter((layer) => layer.status === 'ready').length
   const errorCount = layers.filter((layer) => layer.status === 'error').length
 
@@ -120,7 +121,7 @@ function App() {
   }
 
   function downloadCombinedSvg() {
-    if (!combinedViewBox) return
+    if (!combinedViewBox || renderedLayers.length === 0) return
 
     const svg = createCombinedSvg(renderedLayers, combinedViewBox, viewMode, useRealMasks)
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
@@ -285,13 +286,18 @@ function App() {
           <button className="tool-button" title="Reset preview" onClick={() => setLayers([])}>
             <RotateCcw size={17} />
           </button>
-          <button className="tool-button" title="Download SVG" onClick={downloadCombinedSvg} disabled={!combinedViewBox}>
+          <button
+            className="tool-button"
+            title="Download SVG"
+            onClick={downloadCombinedSvg}
+            disabled={!combinedViewBox || renderedLayers.length === 0}
+          >
             <Download size={17} />
           </button>
         </div>
 
         <div className="canvas-wrap">
-          {combinedViewBox ? (
+          {combinedViewBox && renderedLayers.length > 0 ? (
             <BoardViewport
               layers={renderedLayers}
               viewBox={combinedViewBox}
