@@ -98,6 +98,13 @@ function App() {
     )
   }
 
+  function setAllLayersVisible(visible: boolean) {
+    setSoloLayerId(null)
+    setLayers((currentLayers) =>
+      currentLayers.map((layer) => (layer.status === 'ready' ? { ...layer, visible } : layer)),
+    )
+  }
+
   function changeLayerColor(id: string, color: string) {
     setLayers((currentLayers) => currentLayers.map((layer) => (layer.id === id ? { ...layer, color } : layer)))
   }
@@ -171,7 +178,19 @@ function App() {
         <section className="layer-panel" aria-label="Loaded layers">
           <div className="panel-header">
             <span>Layers</span>
-            <span>{layers.length}</span>
+            <div className="panel-header-actions">
+              {readyCount > 0 ? (
+                <div className="layer-bulk-actions" aria-label="Layer visibility actions">
+                  <button type="button" onClick={() => setAllLayersVisible(false)}>
+                    Hide all
+                  </button>
+                  <button type="button" onClick={() => setAllLayersVisible(true)}>
+                    Show all
+                  </button>
+                </div>
+              ) : null}
+              <span>{layers.length}</span>
+            </div>
           </div>
 
           {sidebarLayers.length === 0 ? (

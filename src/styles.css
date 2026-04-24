@@ -176,10 +176,39 @@ input[type="file"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   color: #dfe8f0;
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.panel-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.layer-bulk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.layer-bulk-actions button {
+  min-height: 26px;
+  border: 1px solid #344150;
+  border-radius: 7px;
+  color: #c5d0dc;
+  background: #101821;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 750;
+  text-transform: none;
+}
+
+.layer-bulk-actions button:hover {
+  background: #1b2b37;
 }
 
 .layer-list {
