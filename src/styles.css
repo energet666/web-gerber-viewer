@@ -104,8 +104,7 @@ input[type="file"] {
 }
 
 .icon-button:hover,
-.tool-button:hover,
-.text-button:hover {
+.tool-button:hover {
   background: #22303d;
 }
 
@@ -113,55 +112,6 @@ input[type="file"] {
   width: 32px;
   height: 32px;
   border-radius: 7px;
-}
-
-.drop-target {
-  display: grid;
-  place-items: center;
-  gap: 10px;
-  min-height: 160px;
-  border: 1px dashed #3c4b5c;
-  border-radius: 8px;
-  background: #0f151d;
-  color: #cdd6df;
-  padding: 18px;
-  text-align: center;
-}
-
-.drop-target.is-compact {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  min-height: 58px;
-  padding: 10px 12px;
-  text-align: left;
-}
-
-.drop-target.is-active {
-  border-color: #58c594;
-  background: #112019;
-}
-
-.drop-target p {
-  margin: 0;
-  font-weight: 650;
-}
-
-.drop-target.is-compact p {
-  justify-self: start;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-}
-
-.text-button {
-  min-height: 36px;
-  border: 1px solid #405064;
-  border-radius: 8px;
-  color: #f5f8fb;
-  background: #1a2632;
-  padding: 0 14px;
 }
 
 .layer-panel {
@@ -460,6 +410,44 @@ input[type="file"] {
   text-align: center;
 }
 
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  border: 2px dashed rgba(88, 197, 148, 0.85);
+  background:
+    radial-gradient(circle at center, rgba(88, 197, 148, 0.16), rgba(11, 15, 20, 0.86) 58%),
+    rgba(11, 15, 20, 0.72);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.drop-overlay-card {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-width: min(360px, calc(100vw - 48px));
+  border: 1px solid #4a7b5f;
+  border-radius: 14px;
+  color: #dff9e9;
+  background: rgba(17, 32, 25, 0.94);
+  padding: 30px;
+  text-align: center;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.44);
+}
+
+.drop-overlay-card strong {
+  color: #f4fff8;
+  font-size: 18px;
+}
+
+.drop-overlay-card span {
+  color: #a9c7b7;
+  font-size: 13px;
+}
+
 @media (max-width: 800px) {
   body {
     overflow: auto;
@@ -481,10 +469,6 @@ input[type="file"] {
 
   .app-shell.is-sidebar-hidden {
     grid-template-rows: minmax(420px, 1fr);
-  }
-
-  .drop-target {
-    min-height: 128px;
   }
 
   .toolbar {

@@ -61,6 +61,7 @@ function App() {
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const dragDepthRef = useRef(0)
 
   const sortedLayers = useMemo(
     () => [...layers].sort((a, b) => compareLayersByViewMode(a, b, viewMode)),
@@ -90,6 +91,36 @@ function App() {
     setSoloLayerId(null)
     setViewport({ zoom: 1, panX: 0, panY: 0 })
     setIsLoading(false)
+  }
+
+  function handleDragEnter(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (!hasDraggedFiles(event.dataTransfer)) return
+
+    dragDepthRef.current += 1
+    setIsDragging(true)
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (hasDraggedFiles(event.dataTransfer)) {
+      event.dataTransfer.dropEffect = 'copy'
+    }
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) {
+      setIsDragging(false)
+    }
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setIsDragging(false)
+    void handleFiles(event.dataTransfer.files)
   }
 
   function toggleLayer(id: string) {
@@ -146,13 +177,28 @@ function App() {
   }
 
   return (
-    <main className={`app-shell ${isSidebarOpen ? '' : 'is-sidebar-hidden'}`}>
+    <main
+      className={`app-shell ${isSidebarOpen ? '' : 'is-sidebar-hidden'}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <aside className="sidebar">
         <div className="brand">
           <div>
             <h1>Gerber Viewer</h1>
             <p>{layers.length ? `${readyCount} rendered, ${errorCount} failed` : 'Local PCB layer preview'}</p>
           </div>
+          <button
+            className="icon-button"
+            type="button"
+            title="Choose Gerber files"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+          >
+            <Upload size={18} />
+          </button>
         </div>
 
         <input
@@ -164,15 +210,6 @@ function App() {
             if (event.target.files) void handleFiles(event.target.files)
             event.currentTarget.value = ''
           }}
-        />
-
-        <DropTarget
-          active={isDragging}
-          compact={layers.length > 0}
-          loading={isLoading}
-          onBrowse={() => fileInputRef.current?.click()}
-          onDragState={setIsDragging}
-          onFiles={(files) => void handleFiles(files)}
         />
 
         <section className="layer-panel" aria-label="Loaded layers">
@@ -345,6 +382,15 @@ function App() {
           )}
         </div>
       </section>
+      {isDragging ? (
+        <div className="drop-overlay" aria-label="Drop Gerber files to load">
+          <div className="drop-overlay-card">
+            <Upload size={34} />
+            <strong>Drop Gerber files</strong>
+            <span>{isLoading ? 'Rendering current set...' : 'Release to replace the current preview'}</span>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
@@ -353,44 +399,14 @@ function isLayerFacingViewer(layer: UploadedLayer, viewMode: BoardViewMode): boo
   return layer.side === viewMode || layer.side === 'both'
 }
 
+function hasDraggedFiles(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.types).includes('Files')
+}
+
 type ViewportState = {
   zoom: number
   panX: number
   panY: number
-}
-
-type DropTargetProps = {
-  active: boolean
-  compact: boolean
-  loading: boolean
-  onBrowse: () => void
-  onDragState: (active: boolean) => void
-  onFiles: (files: FileList) => void
-}
-
-function DropTarget({ active, compact, loading, onBrowse, onDragState, onFiles }: DropTargetProps) {
-  return (
-    <section
-      className={`drop-target ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`}
-      onDragEnter={(event) => {
-        event.preventDefault()
-        onDragState(true)
-      }}
-      onDragOver={(event) => event.preventDefault()}
-      onDragLeave={() => onDragState(false)}
-      onDrop={(event) => {
-        event.preventDefault()
-        onDragState(false)
-        onFiles(event.dataTransfer.files)
-      }}
-    >
-      {compact ? null : <Upload size={24} />}
-      <p>{loading ? 'Rendering files...' : compact ? 'Drop or choose another set' : 'Drop Gerber files here'}</p>
-      <button className="text-button" onClick={onBrowse}>
-        Choose files
-      </button>
-    </section>
-  )
 }
 
 type BoardSvgProps = {
