@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   FileWarning,
+  Focus,
   Maximize2,
   RotateCcw,
   Upload,
@@ -376,11 +377,12 @@ function App() {
                         className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
                         type="button"
                         title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
+                        aria-label={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
                         onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
                         disabled={layer.status === 'error' || isRenderingLayer}
                         aria-pressed={isSoloLayer}
                       >
-                        Solo
+                        <Focus size={16} />
                       </button>
                       <label
                         className="swatch"
