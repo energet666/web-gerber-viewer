@@ -373,29 +373,30 @@ function App() {
           </button>
           <span className="toolbar-divider" />
           <button
-            className="flip-button"
+            className={`toggle-button ${viewMode === 'bottom' ? 'is-active' : ''}`}
             type="button"
             title={`Flip board view to ${viewMode === 'top' ? 'bottom' : 'top'}`}
+            aria-pressed={viewMode === 'bottom'}
             onClick={() => setViewMode((current) => (current === 'top' ? 'bottom' : 'top'))}
           >
             Flip
           </button>
-          <label className="toggle-control">
-            <input
-              type="checkbox"
-              checked={isOpaqueBoard}
-              onChange={(event) => setIsOpaqueBoard(event.target.checked)}
-            />
-            <span>Opaque board</span>
-          </label>
-          <label className="toggle-control">
-            <input
-              type="checkbox"
-              checked={useRealMasks}
-              onChange={(event) => setUseRealMasks(event.target.checked)}
-            />
-            <span>Real masks</span>
-          </label>
+          <button
+            className={`toggle-button ${isOpaqueBoard ? 'is-active' : ''}`}
+            type="button"
+            aria-pressed={isOpaqueBoard}
+            onClick={() => setIsOpaqueBoard((current) => !current)}
+          >
+            Opaque board
+          </button>
+          <button
+            className={`toggle-button ${useRealMasks ? 'is-active' : ''}`}
+            type="button"
+            aria-pressed={useRealMasks}
+            onClick={() => setUseRealMasks((current) => !current)}
+          >
+            Real masks
+          </button>
           <span className="toolbar-divider" />
           <span className="pan-hint">
             <Hand size={15} />
