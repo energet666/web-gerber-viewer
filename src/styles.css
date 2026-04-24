@@ -192,19 +192,14 @@ input[type="file"] {
 }
 
 .layer-row {
-  display: grid;
-  grid-template-columns: 32px 34px 48px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 74px;
   border: 1px solid #2a3644;
   border-radius: 8px;
   background: #151d26;
   padding: 10px;
-}
-
-.layer-row.has-error-icon {
-  grid-template-columns: 32px 34px 48px minmax(0, 1fr) 20px;
 }
 
 .layer-row.has-error {
@@ -231,6 +226,30 @@ input[type="file"] {
   padding: 0;
 }
 
+.layer-file-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: #aeb9c6;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-controls {
+  display: grid;
+  grid-template-columns: 32px 34px 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.layer-row.has-error-icon .layer-controls {
+  grid-template-columns: 32px 34px 48px minmax(0, 1fr) auto;
+}
+
 .solo-button {
   min-height: 32px;
   border: 1px solid #344150;
@@ -253,29 +272,11 @@ input[type="file"] {
   background: #58c594;
 }
 
-.layer-meta {
-  min-width: 0;
-}
-
-.layer-meta strong {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.layer-meta strong {
-  color: #f1f5f9;
-  font-size: 14px;
-}
-
 .layer-kind-select {
   display: block;
   width: 100%;
   min-width: 0;
-  height: 23px;
-  margin-top: 2px;
+  height: 32px;
   border: 1px solid #344150;
   border-radius: 7px;
   color: #dfe8f0;

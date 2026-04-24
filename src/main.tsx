@@ -187,34 +187,34 @@ function App() {
                     className={`layer-row ${isSoloLayer ? 'is-solo' : ''} ${activeSoloLayerId && !isSoloLayer ? 'is-muted-by-solo' : ''} ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
                     key={layer.id}
                   >
-                    <button
-                      className="icon-button compact"
-                      title={layer.visible ? 'Hide layer' : 'Show layer'}
-                      onClick={() => toggleLayer(layer.id)}
-                      disabled={layer.status === 'error' || isRenderingLayer}
-                    >
-                      {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    </button>
-                    <input
-                      className="swatch"
-                      type="color"
-                      title="Layer color"
-                      value={layer.color}
-                      onChange={(event) => changeLayerColor(layer.id, event.target.value)}
-                      disabled={layer.status === 'error' || isRenderingLayer}
-                    />
-                    <button
-                      className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
-                      type="button"
-                      title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
-                      onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
-                      disabled={layer.status === 'error' || isRenderingLayer}
-                      aria-pressed={isSoloLayer}
-                    >
-                      Solo
-                    </button>
-                    <div className="layer-meta">
-                      <strong>{layer.fileName}</strong>
+                    <strong className="layer-file-name">{layer.fileName}</strong>
+                    <div className="layer-controls">
+                      <button
+                        className="icon-button compact"
+                        title={layer.visible ? 'Hide layer' : 'Show layer'}
+                        onClick={() => toggleLayer(layer.id)}
+                        disabled={layer.status === 'error' || isRenderingLayer}
+                      >
+                        {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                      </button>
+                      <input
+                        className="swatch"
+                        type="color"
+                        title="Layer color"
+                        value={layer.color}
+                        onChange={(event) => changeLayerColor(layer.id, event.target.value)}
+                        disabled={layer.status === 'error' || isRenderingLayer}
+                      />
+                      <button
+                        className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
+                        type="button"
+                        title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
+                        onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
+                        disabled={layer.status === 'error' || isRenderingLayer}
+                        aria-pressed={isSoloLayer}
+                      >
+                        Solo
+                      </button>
                       <select
                         className="layer-kind-select"
                         aria-label={`Layer type for ${layer.fileName}`}
@@ -228,12 +228,12 @@ function App() {
                           </option>
                         ))}
                       </select>
+                      {layer.status === 'error' ? (
+                        <span className="error-icon" title={layer.error}>
+                          <FileWarning size={18} />
+                        </span>
+                      ) : null}
                     </div>
-                    {layer.status === 'error' ? (
-                      <span className="error-icon" title={layer.error}>
-                        <FileWarning size={18} />
-                      </span>
-                    ) : null}
                   </article>
                 )
               })}
