@@ -1,0 +1,5 @@
+This is not a Gerber file.
+It intentionally omits required Gerber commands such as format specification,
+coordinate interpolation, apertures, and the end-of-file command.
+
+Load this file to verify the viewer's render-error state.

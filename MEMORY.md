@@ -13,6 +13,8 @@ Use this file for durable project notes that future agents should preserve.
   render with browser defaults and can create incorrect sharp joins.
 - Manual layer reassignment rerenders the layer from stored raw text so drill/gerber parser
   selection stays correct.
+- `gerber-to-svg` may return an empty zero-size SVG without an error for invalid text; keep
+  the empty extracted geometry check so invalid inputs become errored layers.
 - File uploads append to the current layer set. Dedupe uses `fileName + SHA-256(content)`;
   same-name files with different contents remain visible with numbered badges.
 - Sidebar layer order is intentionally reversed from SVG paint order: UI shows top-most first,

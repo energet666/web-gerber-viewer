@@ -34,6 +34,10 @@ export async function renderLayerText(
 
     const svgParts = extractSvgParts(svgMarkup)
 
+    if (!svgParts.layerMarkup.trim()) {
+      throw new Error('Rendered layer does not contain drawable Gerber geometry.')
+    }
+
     return {
       id,
       fileName,

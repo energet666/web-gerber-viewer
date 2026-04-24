@@ -43,6 +43,11 @@ Open `http://localhost:5173/`.
 - `npm run build` runs TypeScript checks and writes the production build to `dist/`.
 - `npm run preview` serves the production build locally.
 
+## Test Fixtures
+
+- `test-fixtures/invalid-gerber.gbr` is intentionally invalid and should load as an errored
+  layer. Use it for manual verification of render-error UI.
+
 ## Usage Notes
 
 Load Gerber and Excellon files, then add more files as needed. Use the reset button to clear the
