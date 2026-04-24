@@ -25,6 +25,7 @@ import {
   compareLayersByViewMode,
   createLayerId,
   inferLayerKind,
+  layerSortRank,
   type BoardViewMode,
   type LayerKind,
   type UploadedLayer,
@@ -77,6 +78,10 @@ function App() {
     [layers, viewMode],
   )
   const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
+  const layerKindOptions = useMemo(
+    () => [...LAYER_KIND_OPTIONS].sort((a, b) => layerSortRank(b, viewMode) - layerSortRank(a, viewMode)),
+    [viewMode],
+  )
   const fileNameOccurrences = useMemo(() => createFileNameOccurrences(layers), [layers])
   const readyLayers = sortedLayers.filter((layer) => layer.status === 'ready' && layer.viewBox)
   const activeSoloLayerId = readyLayers.some((layer) => layer.id === soloLayerId) ? soloLayerId : null
@@ -310,7 +315,6 @@ function App() {
 
         <section className="layer-panel" aria-label="Loaded layers">
           <div className="panel-header">
-            <span>Layers</span>
             <div className="panel-header-actions">
               {readyCount > 0 ? (
                 <div className="layer-bulk-actions" aria-label="Layer visibility actions">
@@ -322,6 +326,9 @@ function App() {
                   </button>
                 </div>
               ) : null}
+            </div>
+            <div className="panel-header-title">
+              <span>Layers</span>
               <span>{layers.length}</span>
             </div>
           </div>
@@ -541,7 +548,7 @@ function App() {
             }
           }}
         >
-          {LAYER_KIND_OPTIONS.map((kind) => (
+          {layerKindOptions.map((kind) => (
             <button
               className={`layer-kind-option ${openLayerKindLayer.kind === kind ? 'is-selected' : ''}`}
               key={kind}
