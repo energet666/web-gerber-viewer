@@ -213,6 +213,24 @@ input[type="file"] {
   min-width: 0;
 }
 
+.remove-layer-button {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  color: #ff9a9f;
+  background: transparent;
+  padding: 0;
+}
+
+.remove-layer-button:hover {
+  color: #ffd1d4;
+  background: #3a171f;
+}
+
 .layer-file-name {
   display: block;
   min-width: 0;

@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
+  X,
   Download,
   PanelLeftClose,
   PanelLeftOpen,
@@ -153,6 +154,18 @@ function App() {
     )
   }
 
+  function removeLayer(id: string) {
+    setLayers((currentLayers) => currentLayers.filter((layer) => layer.id !== id))
+    setSoloLayerId((currentId) => (currentId === id ? null : currentId))
+    setRenderingLayerIds((currentIds) => {
+      if (!currentIds.has(id)) return currentIds
+
+      const nextIds = new Set(currentIds)
+      nextIds.delete(id)
+      return nextIds
+    })
+  }
+
   function setAllLayersVisible(visible: boolean) {
     setSoloLayerId(null)
     setLayers((currentLayers) =>
@@ -274,6 +287,15 @@ function App() {
                         <span className="layer-file-duplicate-badge">#{fileNameOccurrence.index}</span>
                       ) : null}
                       <strong className="layer-file-name">{layer.fileName}</strong>
+                      <button
+                        className="remove-layer-button"
+                        type="button"
+                        title="Remove layer"
+                        onClick={() => removeLayer(layer.id)}
+                        disabled={isRenderingLayer}
+                      >
+                        <X size={13} />
+                      </button>
                     </div>
                     <div className="layer-controls">
                       <button
