@@ -193,7 +193,7 @@ input[type="file"] {
 
 .layer-row {
   display: grid;
-  grid-template-columns: 32px 34px minmax(0, 1fr);
+  grid-template-columns: 32px 34px 48px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 60px;
@@ -204,12 +204,22 @@ input[type="file"] {
 }
 
 .layer-row.has-error-icon {
-  grid-template-columns: 32px 34px minmax(0, 1fr) 20px;
+  grid-template-columns: 32px 34px 48px minmax(0, 1fr) 20px;
 }
 
 .layer-row.has-error {
   border-color: #674047;
   background: #20181b;
+}
+
+.layer-row.is-solo {
+  border-color: #58c594;
+  background: #16251d;
+  box-shadow: inset 3px 0 0 #58c594;
+}
+
+.layer-row.is-muted-by-solo {
+  opacity: 0.58;
 }
 
 .swatch {
@@ -219,6 +229,28 @@ input[type="file"] {
   border-radius: 7px;
   background: transparent;
   padding: 0;
+}
+
+.solo-button {
+  min-height: 32px;
+  border: 1px solid #344150;
+  border-radius: 7px;
+  color: #c5d0dc;
+  background: #101821;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.solo-button:hover {
+  background: #1b2b37;
+}
+
+.solo-button.is-active {
+  border-color: #58c594;
+  color: #072016;
+  background: #58c594;
 }
 
 .layer-meta {

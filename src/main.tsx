@@ -57,6 +57,7 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isOpaqueBoard, setIsOpaqueBoard] = useState(false)
   const [useRealMasks, setUseRealMasks] = useState(false)
+  const [soloLayerId, setSoloLayerId] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -67,10 +68,14 @@ function App() {
   )
   const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
   const readyLayers = sortedLayers.filter((layer) => layer.status === 'ready' && layer.viewBox)
+  const activeSoloLayerId = readyLayers.some((layer) => layer.id === soloLayerId) ? soloLayerId : null
   const visibleReadyLayers = readyLayers.filter((layer) => layer.visible)
-  const renderedLayers = isOpaqueBoard
-    ? visibleReadyLayers.filter((layer) => isLayerFacingViewer(layer, viewMode))
+  const renderableReadyLayers = activeSoloLayerId
+    ? readyLayers.filter((layer) => layer.id === activeSoloLayerId)
     : visibleReadyLayers
+  const renderedLayers = isOpaqueBoard && !activeSoloLayerId
+    ? renderableReadyLayers.filter((layer) => isLayerFacingViewer(layer, viewMode))
+    : renderableReadyLayers
   const combinedViewBox = combineReadyLayerViewBoxes(sortedLayers)
   const readyCount = layers.filter((layer) => layer.status === 'ready').length
   const errorCount = layers.filter((layer) => layer.status === 'error').length
@@ -82,6 +87,7 @@ function App() {
     setIsLoading(true)
     const rendered = await Promise.all(files.map((file, index) => readAndRenderFile(file, createLayerId(file, index))))
     setLayers(rendered)
+    setSoloLayerId(null)
     setViewport({ zoom: 1, panX: 0, panY: 0 })
     setIsLoading(false)
   }
@@ -174,10 +180,11 @@ function App() {
             <div className="layer-list">
               {sidebarLayers.map((layer) => {
                 const isRenderingLayer = renderingLayerIds.has(layer.id)
+                const isSoloLayer = activeSoloLayerId === layer.id
 
                 return (
                   <article
-                    className={`layer-row ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
+                    className={`layer-row ${isSoloLayer ? 'is-solo' : ''} ${activeSoloLayerId && !isSoloLayer ? 'is-muted-by-solo' : ''} ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
                     key={layer.id}
                   >
                     <button
@@ -196,6 +203,16 @@ function App() {
                       onChange={(event) => changeLayerColor(layer.id, event.target.value)}
                       disabled={layer.status === 'error' || isRenderingLayer}
                     />
+                    <button
+                      className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
+                      type="button"
+                      title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
+                      onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
+                      disabled={layer.status === 'error' || isRenderingLayer}
+                      aria-pressed={isSoloLayer}
+                    >
+                      Solo
+                    </button>
                     <div className="layer-meta">
                       <strong>{layer.fileName}</strong>
                       <select
@@ -275,7 +292,10 @@ function App() {
             <Hand size={15} />
             Drag to pan
           </span>
-          <button className="tool-button" title="Reset preview" onClick={() => setLayers([])}>
+          <button className="tool-button" title="Reset preview" onClick={() => {
+            setLayers([])
+            setSoloLayerId(null)
+          }}>
             <RotateCcw size={17} />
           </button>
           <button
