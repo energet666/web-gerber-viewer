@@ -1,6 +1,9 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { createRoot } from 'react-dom/client'
 import {
+  X,
+  ChevronDown,
   Download,
   PanelLeftClose,
   PanelLeftOpen,
@@ -8,6 +11,7 @@ import {
   Eye,
   EyeOff,
   FileWarning,
+  Focus,
   Maximize2,
   RotateCcw,
   Upload,
@@ -15,12 +19,14 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import './styles.css'
-import { readAndRenderFile, renderLayerText } from './domain/renderGerber'
+import { renderLayerText } from './domain/renderGerber'
 import {
   LAYER_LABELS,
-  combineViewBoxes,
+  combineReadyLayerViewBoxes,
   compareLayersByViewMode,
   createLayerId,
+  inferLayerKind,
+  layerSortRank,
   type BoardViewMode,
   type LayerKind,
   type UploadedLayer,
@@ -31,6 +37,8 @@ const root = createRoot(document.getElementById('root') as HTMLElement)
 const MIN_ZOOM = 0.2
 const MAX_ZOOM = 8
 const ZOOM_STEP = 0.2
+const LAYER_KIND_MENU_GAP = 6
+const LAYER_KIND_MENU_MAX_HEIGHT = 245
 const LAYER_KIND_OPTIONS: LayerKind[] = [
   'top-copper',
   'bottom-copper',
@@ -57,37 +65,165 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isOpaqueBoard, setIsOpaqueBoard] = useState(false)
   const [useRealMasks, setUseRealMasks] = useState(false)
+  const [soloLayerId, setSoloLayerId] = useState<string | null>(null)
+  const [layerKindMenu, setLayerKindMenu] = useState<LayerKindMenuState | null>(null)
   const [viewMode, setViewMode] = useState<BoardViewMode>('top')
   const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0 })
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const dragDepthRef = useRef(0)
+  const layerKindTriggerRefs = useRef(new Map<string, HTMLButtonElement>())
+  const layerKindMenuRef = useRef<HTMLDivElement | null>(null)
 
   const sortedLayers = useMemo(
     () => [...layers].sort((a, b) => compareLayersByViewMode(a, b, viewMode)),
     [layers, viewMode],
   )
   const sidebarLayers = useMemo(() => [...sortedLayers].reverse(), [sortedLayers])
-  const visibleReadyLayers = sortedLayers.filter((layer) => layer.visible && layer.status === 'ready' && layer.viewBox)
-  const renderedLayers = isOpaqueBoard
-    ? visibleReadyLayers.filter((layer) => isLayerFacingViewer(layer, viewMode))
+  const layerKindOptions = useMemo(
+    () => [...LAYER_KIND_OPTIONS].sort((a, b) => layerSortRank(b, viewMode) - layerSortRank(a, viewMode)),
+    [viewMode],
+  )
+  const fileNameOccurrences = useMemo(() => createFileNameOccurrences(layers), [layers])
+  const readyLayers = sortedLayers.filter((layer) => layer.status === 'ready' && layer.viewBox)
+  const activeSoloLayerId = readyLayers.some((layer) => layer.id === soloLayerId) ? soloLayerId : null
+  const visibleReadyLayers = readyLayers.filter((layer) => layer.visible)
+  const renderableReadyLayers = activeSoloLayerId
+    ? readyLayers.filter((layer) => layer.id === activeSoloLayerId)
     : visibleReadyLayers
-  const combinedViewBox = combineViewBoxes(renderedLayers.map((layer) => layer.viewBox as ViewBox))
+  const renderedLayers = isOpaqueBoard && !activeSoloLayerId
+    ? renderableReadyLayers.filter((layer) => isLayerFacingViewer(layer, viewMode))
+    : renderableReadyLayers
+  const combinedViewBox = combineReadyLayerViewBoxes(sortedLayers)
   const readyCount = layers.filter((layer) => layer.status === 'ready').length
   const errorCount = layers.filter((layer) => layer.status === 'error').length
+  const openLayerKindLayer = layerKindMenu ? layers.find((layer) => layer.id === layerKindMenu.layerId) : undefined
+
+  useEffect(() => {
+    if (!layerKindMenu) return
+    const currentMenu = layerKindMenu
+
+    function updateMenuPosition() {
+      const trigger = layerKindTriggerRefs.current.get(currentMenu.layerId)
+      if (!trigger) {
+        setLayerKindMenu(null)
+        return
+      }
+
+      setLayerKindMenu(createLayerKindMenuState(currentMenu.layerId, trigger))
+    }
+
+    function closeOnOutsidePointerDown(event: PointerEvent) {
+      const target = event.target
+      const trigger = layerKindTriggerRefs.current.get(currentMenu.layerId)
+
+      if (
+        target instanceof Node &&
+        (trigger?.contains(target) || layerKindMenuRef.current?.contains(target))
+      ) {
+        return
+      }
+
+      setLayerKindMenu(null)
+    }
+
+    window.addEventListener('resize', updateMenuPosition)
+    window.addEventListener('scroll', updateMenuPosition, true)
+    document.addEventListener('pointerdown', closeOnOutsidePointerDown)
+
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition)
+      window.removeEventListener('scroll', updateMenuPosition, true)
+      document.removeEventListener('pointerdown', closeOnOutsidePointerDown)
+    }
+  }, [layerKindMenu])
 
   async function handleFiles(fileList: FileList | File[]) {
     const files = Array.from(fileList).filter((file) => file.size > 0)
     if (files.length === 0) return
 
     setIsLoading(true)
-    const rendered = await Promise.all(files.map((file, index) => readAndRenderFile(file, createLayerId(file, index))))
-    setLayers(rendered)
+    const knownFileKeys = new Set(layers.map((layer) => createFileContentKey(layer.fileName, getLayerContentHash(layer))))
+    const nextFiles: Array<{ file: File; rawText: string; contentHash: string }> = []
+
+    for (const file of files) {
+      const [rawText, contentHash] = await Promise.all([file.text(), hashFile(file)])
+      const fileKey = createFileContentKey(file.name, contentHash)
+
+      if (knownFileKeys.has(fileKey)) continue
+
+      knownFileKeys.add(fileKey)
+      nextFiles.push({ file, rawText, contentHash })
+    }
+
+    if (nextFiles.length === 0) {
+      setIsLoading(false)
+      return
+    }
+
+    const rendered = await Promise.all(
+      nextFiles.map(async ({ file, rawText, contentHash }, index) => ({
+        ...(await renderLayerText(rawText, file.name, createLayerId(file, layers.length + index), inferLayerKind(file.name))),
+        contentHash,
+      })),
+    )
+    setLayers((currentLayers) => [...currentLayers, ...rendered])
     setViewport({ zoom: 1, panX: 0, panY: 0 })
     setIsLoading(false)
+  }
+
+  function handleDragEnter(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (!hasDraggedFiles(event.dataTransfer)) return
+
+    dragDepthRef.current += 1
+    setIsDragging(true)
+  }
+
+  function handleDragOver(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    if (hasDraggedFiles(event.dataTransfer)) {
+      event.dataTransfer.dropEffect = 'copy'
+    }
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) {
+      setIsDragging(false)
+    }
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLElement>) {
+    event.preventDefault()
+    dragDepthRef.current = 0
+    setIsDragging(false)
+    void handleFiles(event.dataTransfer.files)
   }
 
   function toggleLayer(id: string) {
     setLayers((currentLayers) =>
       currentLayers.map((layer) => (layer.id === id ? { ...layer, visible: !layer.visible } : layer)),
+    )
+  }
+
+  function removeLayer(id: string) {
+    setLayers((currentLayers) => currentLayers.filter((layer) => layer.id !== id))
+    setSoloLayerId((currentId) => (currentId === id ? null : currentId))
+    setLayerKindMenu((currentMenu) => (currentMenu?.layerId === id ? null : currentMenu))
+    setRenderingLayerIds((currentIds) => {
+      if (!currentIds.has(id)) return currentIds
+
+      const nextIds = new Set(currentIds)
+      nextIds.delete(id)
+      return nextIds
+    })
+  }
+
+  function setAllLayersVisible(visible: boolean) {
+    setSoloLayerId(null)
+    setLayers((currentLayers) =>
+      currentLayers.map((layer) => (layer.status === 'ready' ? { ...layer, visible } : layer)),
     )
   }
 
@@ -99,6 +235,7 @@ function App() {
     const layer = layers.find((currentLayer) => currentLayer.id === id)
     if (!layer || layer.kind === kind) return
 
+    setLayerKindMenu(null)
     setRenderingLayerIds((currentIds) => new Set(currentIds).add(id))
     const nextLayer = await renderLayerText(layer.rawText, layer.fileName, layer.id, kind)
 
@@ -108,6 +245,7 @@ function App() {
 
         return {
           ...nextLayer,
+          contentHash: currentLayer.contentHash,
           visible: nextLayer.status === 'ready' ? currentLayer.visible || currentLayer.status === 'error' : false,
         }
       }),
@@ -120,7 +258,7 @@ function App() {
   }
 
   function downloadCombinedSvg() {
-    if (!combinedViewBox) return
+    if (!combinedViewBox || renderedLayers.length === 0) return
 
     const svg = createCombinedSvg(renderedLayers, combinedViewBox, viewMode, useRealMasks)
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }))
@@ -131,14 +269,38 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  function toggleLayerKindMenu(id: string) {
+    const trigger = layerKindTriggerRefs.current.get(id)
+    if (!trigger) return
+
+    setLayerKindMenu((currentMenu) => (
+      currentMenu?.layerId === id ? null : createLayerKindMenuState(id, trigger)
+    ))
+  }
+
   return (
-    <main className={`app-shell ${isSidebarOpen ? '' : 'is-sidebar-hidden'}`}>
+    <main
+      className={`app-shell ${isSidebarOpen ? '' : 'is-sidebar-hidden'}`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <aside className="sidebar">
         <div className="brand">
           <div>
             <h1>Gerber Viewer</h1>
             <p>{layers.length ? `${readyCount} rendered, ${errorCount} failed` : 'Local PCB layer preview'}</p>
           </div>
+          <button
+            className="icon-button"
+            type="button"
+            title="Choose Gerber files"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isLoading}
+          >
+            <Upload size={18} />
+          </button>
         </div>
 
         <input
@@ -152,19 +314,24 @@ function App() {
           }}
         />
 
-        <DropTarget
-          active={isDragging}
-          compact={layers.length > 0}
-          loading={isLoading}
-          onBrowse={() => fileInputRef.current?.click()}
-          onDragState={setIsDragging}
-          onFiles={(files) => void handleFiles(files)}
-        />
-
         <section className="layer-panel" aria-label="Loaded layers">
           <div className="panel-header">
-            <span>Layers</span>
-            <span>{layers.length}</span>
+            <div className="panel-header-actions">
+              {readyCount > 0 ? (
+                <div className="layer-bulk-actions" aria-label="Layer visibility actions">
+                  <button type="button" onClick={() => setAllLayersVisible(false)}>
+                    Hide all
+                  </button>
+                  <button type="button" onClick={() => setAllLayersVisible(true)}>
+                    Show all
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <div className="panel-header-title">
+              <span>Layers</span>
+              <span>{layers.length}</span>
+            </div>
           </div>
 
           {sidebarLayers.length === 0 ? (
@@ -173,49 +340,97 @@ function App() {
             <div className="layer-list">
               {sidebarLayers.map((layer) => {
                 const isRenderingLayer = renderingLayerIds.has(layer.id)
+                const isSoloLayer = activeSoloLayerId === layer.id
+                const fileNameOccurrence = fileNameOccurrences.get(layer.id)
+                const isLayerKindMenuOpen = layerKindMenu?.layerId === layer.id
 
                 return (
                   <article
-                    className={`layer-row ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
+                    className={`layer-row ${isSoloLayer ? 'is-solo' : ''} ${isLayerKindMenuOpen ? 'has-open-menu' : ''} ${activeSoloLayerId && !isSoloLayer ? 'is-muted-by-solo' : ''} ${layer.status === 'error' ? 'has-error' : ''} ${layer.status === 'error' ? 'has-error-icon' : ''}`}
                     key={layer.id}
                   >
-                    <button
-                      className="icon-button compact"
-                      title={layer.visible ? 'Hide layer' : 'Show layer'}
-                      onClick={() => toggleLayer(layer.id)}
-                      disabled={layer.status === 'error' || isRenderingLayer}
-                    >
-                      {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                    </button>
-                    <input
-                      className="swatch"
-                      type="color"
-                      title="Layer color"
-                      value={layer.color}
-                      onChange={(event) => changeLayerColor(layer.id, event.target.value)}
-                      disabled={layer.status === 'error' || isRenderingLayer}
-                    />
-                    <div className="layer-meta">
-                      <strong>{layer.fileName}</strong>
-                      <select
-                        className="layer-kind-select"
-                        aria-label={`Layer type for ${layer.fileName}`}
-                        value={layer.kind}
-                        onChange={(event) => void changeLayerKind(layer.id, event.target.value as LayerKind)}
+                    <div className="layer-file-heading">
+                      {fileNameOccurrence && fileNameOccurrence.total > 1 ? (
+                        <span className="layer-file-duplicate-badge">#{fileNameOccurrence.index}</span>
+                      ) : null}
+                      <strong className="layer-file-name">{layer.fileName}</strong>
+                      <button
+                        className="remove-layer-button"
+                        type="button"
+                        title="Remove layer"
+                        onClick={() => removeLayer(layer.id)}
                         disabled={isRenderingLayer}
                       >
-                        {LAYER_KIND_OPTIONS.map((kind) => (
-                          <option key={kind} value={kind}>
-                            {LAYER_LABELS[kind]}
-                          </option>
-                        ))}
-                      </select>
+                        <X size={13} />
+                      </button>
                     </div>
-                    {layer.status === 'error' ? (
-                      <span className="error-icon" title={layer.error}>
-                        <FileWarning size={18} />
-                      </span>
-                    ) : null}
+                    <div className="layer-controls">
+                      <button
+                        className="icon-button compact"
+                        title={layer.visible ? 'Hide layer' : 'Show layer'}
+                        onClick={() => toggleLayer(layer.id)}
+                        disabled={layer.status === 'error' || isRenderingLayer}
+                      >
+                        {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                      </button>
+                      <button
+                        className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
+                        type="button"
+                        title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
+                        aria-label={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
+                        onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
+                        disabled={layer.status === 'error' || isRenderingLayer}
+                        aria-pressed={isSoloLayer}
+                      >
+                        <Focus size={16} />
+                      </button>
+                      <label
+                        className="swatch"
+                        title="Layer color"
+                        style={{ '--swatch-color': layer.color } as React.CSSProperties}
+                      >
+                        <input
+                          type="color"
+                          aria-label={`Layer color for ${layer.fileName}`}
+                          value={layer.color}
+                          onChange={(event) => changeLayerColor(layer.id, event.target.value)}
+                          disabled={layer.status === 'error' || isRenderingLayer}
+                        />
+                      </label>
+                      <div
+                        className="layer-kind-menu"
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setLayerKindMenu(null)
+                          }
+                        }}
+                      >
+                        <button
+                          ref={(node) => {
+                            if (node) {
+                              layerKindTriggerRefs.current.set(layer.id, node)
+                            } else {
+                              layerKindTriggerRefs.current.delete(layer.id)
+                            }
+                          }}
+                          className={`layer-kind-trigger ${isLayerKindMenuOpen ? 'is-open' : ''}`}
+                          type="button"
+                          aria-label={`Layer type for ${layer.fileName}`}
+                          aria-expanded={isLayerKindMenuOpen}
+                          aria-haspopup="listbox"
+                          onClick={() => toggleLayerKindMenu(layer.id)}
+                          disabled={isRenderingLayer}
+                        >
+                          <span>{LAYER_LABELS[layer.kind]}</span>
+                          <ChevronDown className="select-chevron" size={15} aria-hidden="true" />
+                        </button>
+                      </div>
+                      {layer.status === 'error' ? (
+                        <span className="error-icon" title={layer.error}>
+                          <FileWarning size={18} />
+                        </span>
+                      ) : null}
+                    </div>
                   </article>
                 )
               })}
@@ -245,53 +460,54 @@ function App() {
             <ZoomIn size={17} />
           </button>
           <span className="toolbar-divider" />
-          <div className="segmented-control" aria-label="Board side view">
-            <button
-              className={viewMode === 'top' ? 'is-selected' : ''}
-              type="button"
-              onClick={() => setViewMode('top')}
-            >
-              Top
-            </button>
-            <button
-              className={viewMode === 'bottom' ? 'is-selected' : ''}
-              type="button"
-              onClick={() => setViewMode('bottom')}
-            >
-              Bottom
-            </button>
-          </div>
-          <label className="toggle-control">
-            <input
-              type="checkbox"
-              checked={isOpaqueBoard}
-              onChange={(event) => setIsOpaqueBoard(event.target.checked)}
-            />
-            <span>Opaque board</span>
-          </label>
-          <label className="toggle-control">
-            <input
-              type="checkbox"
-              checked={useRealMasks}
-              onChange={(event) => setUseRealMasks(event.target.checked)}
-            />
-            <span>Real masks</span>
-          </label>
+          <button
+            className={`toggle-button ${viewMode === 'bottom' ? 'is-active' : ''}`}
+            type="button"
+            title={`Flip board view to ${viewMode === 'top' ? 'bottom' : 'top'}`}
+            aria-pressed={viewMode === 'bottom'}
+            onClick={() => setViewMode((current) => (current === 'top' ? 'bottom' : 'top'))}
+          >
+            Flip
+          </button>
+          <button
+            className={`toggle-button ${isOpaqueBoard ? 'is-active' : ''}`}
+            type="button"
+            aria-pressed={isOpaqueBoard}
+            onClick={() => setIsOpaqueBoard((current) => !current)}
+          >
+            Opaque board
+          </button>
+          <button
+            className={`toggle-button ${useRealMasks ? 'is-active' : ''}`}
+            type="button"
+            aria-pressed={useRealMasks}
+            onClick={() => setUseRealMasks((current) => !current)}
+          >
+            Real masks
+          </button>
           <span className="toolbar-divider" />
           <span className="pan-hint">
             <Hand size={15} />
             Drag to pan
           </span>
-          <button className="tool-button" title="Reset preview" onClick={() => setLayers([])}>
+          <button className="tool-button" title="Reset preview" onClick={() => {
+            setLayers([])
+            setSoloLayerId(null)
+          }}>
             <RotateCcw size={17} />
           </button>
-          <button className="tool-button" title="Download SVG" onClick={downloadCombinedSvg} disabled={!combinedViewBox}>
+          <button
+            className="tool-button"
+            title="Download SVG"
+            onClick={downloadCombinedSvg}
+            disabled={!combinedViewBox || renderedLayers.length === 0}
+          >
             <Download size={17} />
           </button>
         </div>
 
         <div className="canvas-wrap">
-          {combinedViewBox ? (
+          {combinedViewBox && renderedLayers.length > 0 ? (
             <BoardViewport
               layers={renderedLayers}
               viewBox={combinedViewBox}
@@ -308,6 +524,47 @@ function App() {
           )}
         </div>
       </section>
+      {isDragging ? (
+        <div className="drop-overlay" aria-label="Drop Gerber files to load">
+          <div className="drop-overlay-card">
+            <Upload size={34} />
+            <strong>Drop Gerber files</strong>
+            <span>{isLoading ? 'Rendering current set...' : 'Release to replace the current preview'}</span>
+          </div>
+        </div>
+      ) : null}
+      {layerKindMenu && openLayerKindLayer ? createPortal(
+        <div
+          ref={layerKindMenuRef}
+          className="layer-kind-options"
+          role="listbox"
+          aria-label={`Layer type for ${openLayerKindLayer.fileName}`}
+          style={{
+            top: layerKindMenu.top,
+            left: layerKindMenu.left,
+            width: layerKindMenu.width,
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setLayerKindMenu(null)
+            }
+          }}
+        >
+          {layerKindOptions.map((kind) => (
+            <button
+              className={`layer-kind-option ${openLayerKindLayer.kind === kind ? 'is-selected' : ''}`}
+              key={kind}
+              type="button"
+              role="option"
+              aria-selected={openLayerKindLayer.kind === kind}
+              onClick={() => void changeLayerKind(openLayerKindLayer.id, kind)}
+            >
+              {LAYER_LABELS[kind]}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      ) : null}
     </main>
   )
 }
@@ -316,44 +573,78 @@ function isLayerFacingViewer(layer: UploadedLayer, viewMode: BoardViewMode): boo
   return layer.side === viewMode || layer.side === 'both'
 }
 
+function hasDraggedFiles(dataTransfer: DataTransfer): boolean {
+  return Array.from(dataTransfer.types).includes('Files')
+}
+
+function getLayerContentHash(layer: UploadedLayer): string {
+  return layer.contentHash ?? layer.rawText
+}
+
+function createFileContentKey(fileName: string, contentHash: string): string {
+  return `${fileName}\0${contentHash}`
+}
+
+async function hashFile(file: File): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+}
+
+type FileNameOccurrence = {
+  index: number
+  total: number
+}
+
+type LayerKindMenuState = {
+  layerId: string
+  top: number
+  left: number
+  width: number
+}
+
+function createLayerKindMenuState(layerId: string, trigger: HTMLElement): LayerKindMenuState {
+  const rect = trigger.getBoundingClientRect()
+  const menuHeight = Math.min(
+    LAYER_KIND_MENU_MAX_HEIGHT,
+    LAYER_KIND_OPTIONS.length * 33 + 10,
+  )
+  const spaceBelow = window.innerHeight - rect.bottom
+  const spaceAbove = rect.top
+  const opensUp = spaceBelow < menuHeight + LAYER_KIND_MENU_GAP && spaceAbove > spaceBelow
+  const top = opensUp
+    ? Math.max(LAYER_KIND_MENU_GAP, rect.top - menuHeight - LAYER_KIND_MENU_GAP)
+    : Math.min(window.innerHeight - menuHeight - LAYER_KIND_MENU_GAP, rect.bottom + LAYER_KIND_MENU_GAP)
+
+  return {
+    layerId,
+    top,
+    left: rect.left,
+    width: rect.width,
+  }
+}
+
+function createFileNameOccurrences(layers: UploadedLayer[]): Map<string, FileNameOccurrence> {
+  const totals = new Map<string, number>()
+  const seen = new Map<string, number>()
+  const occurrences = new Map<string, FileNameOccurrence>()
+
+  for (const layer of layers) {
+    totals.set(layer.fileName, (totals.get(layer.fileName) ?? 0) + 1)
+  }
+
+  for (const layer of layers) {
+    const nextIndex = (seen.get(layer.fileName) ?? 0) + 1
+    seen.set(layer.fileName, nextIndex)
+    occurrences.set(layer.id, { index: nextIndex, total: totals.get(layer.fileName) ?? 1 })
+  }
+
+  return occurrences
+}
+
 type ViewportState = {
   zoom: number
   panX: number
   panY: number
-}
-
-type DropTargetProps = {
-  active: boolean
-  compact: boolean
-  loading: boolean
-  onBrowse: () => void
-  onDragState: (active: boolean) => void
-  onFiles: (files: FileList) => void
-}
-
-function DropTarget({ active, compact, loading, onBrowse, onDragState, onFiles }: DropTargetProps) {
-  return (
-    <section
-      className={`drop-target ${active ? 'is-active' : ''} ${compact ? 'is-compact' : ''}`}
-      onDragEnter={(event) => {
-        event.preventDefault()
-        onDragState(true)
-      }}
-      onDragOver={(event) => event.preventDefault()}
-      onDragLeave={() => onDragState(false)}
-      onDrop={(event) => {
-        event.preventDefault()
-        onDragState(false)
-        onFiles(event.dataTransfer.files)
-      }}
-    >
-      {compact ? null : <Upload size={24} />}
-      <p>{loading ? 'Rendering files...' : compact ? 'Drop or choose another set' : 'Drop Gerber files here'}</p>
-      <button className="text-button" onClick={onBrowse}>
-        Choose files
-      </button>
-    </section>
-  )
 }
 
 type BoardSvgProps = {

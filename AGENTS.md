@@ -21,7 +21,10 @@ The public repository is `https://github.com/energet666/web-gerber-viewer.git`.
 - `src/domain/layers.ts` contains layer inference, viewBox helpers, SVG extraction helpers, and shared types.
 - `src/domain/renderGerber.ts` reads files and converts Gerber/Excellon text to SVG.
 - `src/domain/layers.test.ts` covers layer detection and SVG/viewBox helpers.
+- `src/domain/renderGerber.test.ts` covers renderer error handling.
 - `src/types/gerber-to-svg.d.ts` provides the local declaration for `gerber-to-svg`.
+- `test-fixtures/invalid-gerber.gbr` is an intentionally invalid manual-test file that should
+  load as an errored layer.
 
 ## Rendering Notes
 
@@ -42,12 +45,23 @@ Layer order has two separate meanings:
 Manual layer assignment must rerender the file because the selected type affects renderer
 options, especially Gerber vs Excellon/drill parsing.
 
+`gerber-to-svg` can return an empty zero-size SVG without an error for invalid text input. Treat
+rendered layers with empty extracted geometry as errors rather than valid blank layers.
+
+Adding files appends to the current layer set. A file with the same name and identical SHA-256
+content hash is ignored; same-name files with different contents are kept and numbered in the
+layer list. The reset toolbar button is the explicit way to clear all loaded layers.
+
 `Opaque board` filters visible layers to the side facing the current view (`top` or `bottom`)
 plus both-side layers such as outline/drill.
 
 `Real masks` renders solder mask layers as a full-viewBox mask-colored rectangle with the
 solder mask layer geometry cut out. It intentionally ignores outline shape for now; previous
 attempts to fill outline stroke geometry produced incorrect sector fills on real boards.
+
+The custom layer-type menu is rendered through a portal into `document.body` and positioned from
+the trigger button. Keep it outside the scrollable layer list so the menu is not clipped near the
+bottom of the sidebar.
 
 ## Git Hygiene
 

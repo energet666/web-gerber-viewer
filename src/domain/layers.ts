@@ -28,6 +28,7 @@ export type UploadedLayer = {
   id: string
   fileName: string
   rawText: string
+  contentHash?: string
   kind: LayerKind
   side: LayerSide
   color: string
@@ -135,6 +136,14 @@ export function combineViewBoxes(viewBoxes: ViewBox[]): ViewBox | null {
     width: Math.max(maxX - minX, 1),
     height: Math.max(maxY - minY, 1),
   }
+}
+
+export function combineReadyLayerViewBoxes(layers: UploadedLayer[]): ViewBox | null {
+  return combineViewBoxes(
+    layers
+      .filter((layer): layer is UploadedLayer & { viewBox: ViewBox } => layer.status === 'ready' && Boolean(layer.viewBox))
+      .map((layer) => layer.viewBox),
+  )
 }
 
 export function parseViewBox(svgMarkup: string): ViewBox | null {

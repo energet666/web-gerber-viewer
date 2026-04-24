@@ -7,9 +7,13 @@ The app reads files locally in the browser and does not upload board data to a s
 ## Features
 
 - Drag-and-drop or file picker upload for Gerber and drill files.
+- Additional uploads append layers instead of replacing the current set.
+- Duplicate files with the same name and identical contents are ignored; same-name files with
+  different contents are numbered in the layer list.
 - Automatic layer type detection from common file names/extensions.
 - Manual layer assignment for non-standard file names.
 - Layer visibility and color controls.
+- Per-layer removal, single-layer viewing, and show/hide-all controls.
 - Top and bottom board views.
 - Collapsible sidebar.
 - Opaque board mode, which shows only the board side facing the viewer.
@@ -39,9 +43,15 @@ Open `http://localhost:5173/`.
 - `npm run build` runs TypeScript checks and writes the production build to `dist/`.
 - `npm run preview` serves the production build locally.
 
+## Test Fixtures
+
+- `test-fixtures/invalid-gerber.gbr` is intentionally invalid and should load as an errored
+  layer. Use it for manual verification of render-error UI.
+
 ## Usage Notes
 
-Load a set of Gerber and Excellon files, then adjust layer types from the sidebar if the file extensions are non-standard.
+Load Gerber and Excellon files, then add more files as needed. Use the reset button to clear the
+current set. Adjust layer types from the sidebar if the file extensions are non-standard.
 
 The viewer composes each rendered layer into a shared coordinate system. The layer list is shown top-most first, while SVG rendering is still ordered bottom-to-top so visible upper layers are drawn last.
 

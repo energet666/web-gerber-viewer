@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  combineReadyLayerViewBoxes,
   combineViewBoxes,
   compareLayersByViewMode,
   extractSvgParts,
@@ -44,6 +45,15 @@ describe('viewBox helpers', () => {
         { minX: -5, minY: 20, width: 15, height: 5 },
       ]),
     ).toEqual({ minX: -5, minY: 10, width: 25, height: 15 })
+  })
+
+  it('keeps hidden ready layers in the combined uploaded-layer viewBox', () => {
+    expect(
+      combineReadyLayerViewBoxes([
+        createUploadedLayer('outline', { minX: 0, minY: 0, width: 120, height: 80 }, false),
+        createUploadedLayer('top-copper', { minX: 10, minY: 10, width: 40, height: 30 }, true),
+      ]),
+    ).toEqual({ minX: 0, minY: 0, width: 120, height: 80 })
   })
 })
 
@@ -137,4 +147,19 @@ function sortKinds(viewMode: 'top' | 'bottom'): LayerKind[] {
     )
     .sort((a, b) => compareLayersByViewMode(a, b, viewMode))
     .map((layer) => layer.kind)
+}
+
+function createUploadedLayer(kind: LayerKind, viewBox: UploadedLayer['viewBox'], visible: boolean): UploadedLayer {
+  return {
+    id: kind,
+    fileName: `${kind}.gbr`,
+    rawText: '',
+    kind,
+    side: 'unknown',
+    color: '#ffffff',
+    visible,
+    status: 'ready',
+    renderAttributes: {},
+    viewBox,
+  }
 }
