@@ -246,22 +246,14 @@ function App() {
             <ZoomIn size={17} />
           </button>
           <span className="toolbar-divider" />
-          <div className="segmented-control" aria-label="Board side view">
-            <button
-              className={viewMode === 'top' ? 'is-selected' : ''}
-              type="button"
-              onClick={() => setViewMode('top')}
-            >
-              Top
-            </button>
-            <button
-              className={viewMode === 'bottom' ? 'is-selected' : ''}
-              type="button"
-              onClick={() => setViewMode('bottom')}
-            >
-              Bottom
-            </button>
-          </div>
+          <button
+            className="flip-button"
+            type="button"
+            title={`Flip board view to ${viewMode === 'top' ? 'bottom' : 'top'}`}
+            onClick={() => setViewMode((current) => (current === 'top' ? 'bottom' : 'top'))}
+          >
+            Flip
+          </button>
           <label className="toggle-control">
             <input
               type="checkbox"
