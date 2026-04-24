@@ -9,6 +9,28 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: #3d5062 #0d141d;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+*::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #0d141d;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid #0d141d;
+  border-radius: 999px;
+  background: #3d5062;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #52687c;
 }
 
 body {
@@ -171,6 +193,7 @@ input[type="file"] {
 }
 
 .layer-row {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -194,6 +217,10 @@ input[type="file"] {
 
 .layer-row.is-muted-by-solo {
   opacity: 0.58;
+}
+
+.layer-row.has-open-menu {
+  z-index: 5;
 }
 
 .swatch {
@@ -318,22 +345,91 @@ input[type="file"] {
   background: #58c594;
 }
 
-.layer-kind-select {
+.layer-kind-menu {
+  position: relative;
   display: block;
   width: 100%;
   min-width: 0;
+}
+
+.layer-kind-trigger {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   height: 32px;
+  width: 100%;
+  min-width: 0;
   border: 1px solid #344150;
   border-radius: 7px;
   color: #dfe8f0;
-  background: #101821;
-  padding: 0 8px;
+  background:
+    linear-gradient(180deg, #15202a, #101821);
+  padding: 0 9px 0 10px;
   font-size: 12px;
+  font-weight: 650;
+  text-align: left;
 }
 
-.layer-kind-select:focus {
+.layer-kind-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.layer-kind-trigger:hover,
+.layer-kind-trigger.is-open {
+  border-color: #46586b;
+  background:
+    linear-gradient(180deg, #1b2a36, #121d27);
+}
+
+.layer-kind-trigger:focus {
   outline: 2px solid #58c594;
   outline-offset: 1px;
+}
+
+.select-chevron {
+  flex: 0 0 auto;
+  color: #8fa0b1;
+  pointer-events: none;
+}
+
+.layer-kind-options {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 3px;
+  max-height: 245px;
+  overflow: auto;
+  border: 1px solid #344150;
+  border-radius: 9px;
+  background: #0d141d;
+  padding: 5px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+}
+
+.layer-kind-option {
+  min-height: 30px;
+  border: 0;
+  border-radius: 6px;
+  color: #dce6ef;
+  background: transparent;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.layer-kind-option:hover,
+.layer-kind-option:focus {
+  outline: none;
+  background: #1a2a36;
+}
+
+.layer-kind-option.is-selected {
+  color: #072016;
+  background: #58c594;
 }
 
 .error-icon {
