@@ -237,7 +237,7 @@ input[type="file"] {
 
 .layer-file-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
@@ -245,10 +245,12 @@ input[type="file"] {
 
 .remove-layer-button {
   display: inline-grid;
+  align-self: flex-start;
   flex: 0 0 auto;
   place-items: center;
   width: 20px;
   height: 20px;
+  margin-top: -2px;
   border: 0;
   border-radius: 999px;
   color: #ff9a9f;
@@ -285,13 +287,13 @@ input[type="file"] {
 
 .layer-controls {
   display: grid;
-  grid-template-columns: 32px 34px 48px minmax(0, 1fr);
+  grid-template-columns: 32px 48px 34px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
 }
 
 .layer-row.has-error-icon .layer-controls {
-  grid-template-columns: 32px 34px 48px minmax(0, 1fr) auto;
+  grid-template-columns: 32px 48px 34px minmax(0, 1fr) auto;
 }
 
 .solo-button {

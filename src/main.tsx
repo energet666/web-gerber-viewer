@@ -306,6 +306,16 @@ function App() {
                       >
                         {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                       </button>
+                      <button
+                        className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
+                        type="button"
+                        title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
+                        onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
+                        disabled={layer.status === 'error' || isRenderingLayer}
+                        aria-pressed={isSoloLayer}
+                      >
+                        Solo
+                      </button>
                       <label
                         className="swatch"
                         title="Layer color"
@@ -319,16 +329,6 @@ function App() {
                           disabled={layer.status === 'error' || isRenderingLayer}
                         />
                       </label>
-                      <button
-                        className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
-                        type="button"
-                        title={isSoloLayer ? 'Exit single layer mode' : 'Show only this layer'}
-                        onClick={() => setSoloLayerId(isSoloLayer ? null : layer.id)}
-                        disabled={layer.status === 'error' || isRenderingLayer}
-                        aria-pressed={isSoloLayer}
-                      >
-                        Solo
-                      </button>
                       <select
                         className="layer-kind-select"
                         aria-label={`Layer type for ${layer.fileName}`}
