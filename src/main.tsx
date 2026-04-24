@@ -306,14 +306,19 @@ function App() {
                       >
                         {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                       </button>
-                      <input
+                      <label
                         className="swatch"
-                        type="color"
                         title="Layer color"
-                        value={layer.color}
-                        onChange={(event) => changeLayerColor(layer.id, event.target.value)}
-                        disabled={layer.status === 'error' || isRenderingLayer}
-                      />
+                        style={{ '--swatch-color': layer.color } as React.CSSProperties}
+                      >
+                        <input
+                          type="color"
+                          aria-label={`Layer color for ${layer.fileName}`}
+                          value={layer.color}
+                          onChange={(event) => changeLayerColor(layer.id, event.target.value)}
+                          disabled={layer.status === 'error' || isRenderingLayer}
+                        />
+                      </label>
                       <button
                         className={`solo-button ${isSoloLayer ? 'is-active' : ''}`}
                         type="button"
