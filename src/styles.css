@@ -207,7 +207,7 @@ input[type="file"] {
 
 .layer-file-heading {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
@@ -234,14 +234,12 @@ input[type="file"] {
 .layer-file-name {
   display: block;
   min-width: 0;
-  overflow: hidden;
   color: #aeb9c6;
   font-size: 12px;
   font-weight: 650;
   line-height: 1.25;
   text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .layer-file-duplicate-badge {
